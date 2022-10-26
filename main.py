@@ -11,14 +11,13 @@ import requests
 
 
 def settings_on_start(hashMap, _files=None, _data=None):
-
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 80))
         aa = (s.getsockname()[0])
         # aa = hashMap.get('ip_adr')
         hashMap.put('ip_adr', aa)
-        #hashMap.put('toast', aa)
+        # hashMap.put('toast', aa)
     except:
         hashMap.put('ip_adr', 'нет сети')
 
@@ -30,6 +29,10 @@ def settings_on_start(hashMap, _files=None, _data=None):
         hashMap.put('use_mark', str(res[3]))
         hashMap.put('path', str(res[4]))
         hashMap.put('delete_files', str(res[5]))
+
+    if not hashMap.containsKey('ip_host'):
+        hashMap.put('ip_host', '192.168.0.45')
+
     return hashMap
 
 
@@ -40,18 +43,18 @@ def settings_on_click(hashMap, _files=None, _data=None):
     delete_files = hashMap.get('delete_files')
     path = hashMap.get('path')
 
-    if use_series == None: use_series = '0'
-    if use_properties == None: use_properties = '0'
-    if use_mark == None: use_mark = '0'
-    if delete_files == None: delete_files = '0'
-    if path == None: path = '//storage/emulated/0/download/'
+    if use_series is None: use_series = '0'
+    if use_properties is None: use_properties = '0'
+    if use_mark is None: use_mark = '0'
+    if delete_files is None: delete_files = '0'
+    if path is None: path = '//storage/emulated/0/download/'
 
     ui_global.put_constants((use_series, use_properties, use_mark, path, delete_files))
 
     if hashMap.get('listener') == 'btn_copy_base':
         ip_host = hashMap.get('ip_host')
         with open('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS', 'rb') as f:
-            r = requests.post('http://'+ip_host+':2444/post', files={'SimpleWMS': f})
+            r = requests.post('http://' + ip_host + ':2444/post', files={'SimpleWMS': f})
         if r.status_code == 200:
             hashMap.put('toast', 'База SQLite успешно выгружена')
         else:
@@ -63,7 +66,7 @@ def settings_on_click(hashMap, _files=None, _data=None):
         delete_files = hashMap.get('delete_files')
         if not delete_files: delete_files = '0'
         if not path: path = '//storage/emulated/0/download/'
-        ret_text = ui_csv.list_folder(path,delete_files)
+        ret_text = ui_csv.list_folder(path, delete_files)
 
         hashMap.put('toast', ret_text)
     elif hashMap.get('listener') == 'btn_export':
@@ -74,7 +77,6 @@ def settings_on_click(hashMap, _files=None, _data=None):
 
 
 def init_on_start(hashMap, _files=None, _data=None):
-
     return hashMap
 
 
@@ -168,26 +170,30 @@ def doc_details_on_start(hashMap, _files=None, _data=None):
     query_text = ui_form_data.get_doc_details_query()
 
     results = ui_global.get_query_result(query_text, (id_doc,))
-    hashMap.put('id_doc', str(results[0][1]))
-    for record in results:
-        product_row = {
-            'key': str(record[0]),
-            'good_name': str(record[3]),
-            # 'id_properties': str(record[3]),
-            'properties_name': str(record[5]),
-            # 'id_series': str(record[5]),
-            'series_name': str(record[7]),
-            # 'id_unit': str(record[7]),
-            'code_art': 'Код: ' + str(record[2]),
-            'units_name': str(record[9]),
-            'qtty': str(record[10] if record[10] is not None else 0),
-            'qtty_plan': str(record[11] if record[11] is not None else 0),
-            'price': str(record[12] if record[12] is not None else 0),
-            'price_name': str(record[13]),
-            'picture':'#f02a'
-        }
 
-        doc_detail_list['customcards']['cardsdata'].append(product_row)
+    if results:
+        hashMap.put('id_doc', str(results[0][1]))
+        for record in results:
+            product_row = {
+                'key': str(record[0]),
+                'good_name': str(record[3]),
+                'id_good': str(record[2]),
+                'id_properties': str(record[4]),
+                'properties_name': str(record[5]),
+                'id_series': str(record[6]),
+                'series_name': str(record[7]),
+                'id_unit': str(record[8]),
+                'units_name': str(record[9]),
+                'code_art': 'Код: ' + str(record[2]),
+
+                'qtty': str(record[10] if record[10] is not None else 0),
+                'qtty_plan': str(record[11] if record[11] is not None else 0),
+                'price': str(record[12] if record[12] is not None else 0),
+                'price_name': str(record[13]),
+                'picture': '#f02a' if record[14] != 0 else '#f00c'
+            }
+
+            doc_detail_list['customcards']['cardsdata'].append(product_row)
 
     hashMap.put("doc_goods", json.dumps(doc_detail_list))
 
@@ -270,21 +276,23 @@ def doc_details_listener(hashMap, _files=None, _data=None):
         hashMap.put('key', current_elem['key'])
         hashMap.put('price', current_elem['price'])
         hashMap.put('price_type', current_elem['price_name'])
-        #Формируем таблицу QR кодов------------------
+        # Формируем таблицу QR кодов------------------
         query_text = ui_form_data.get_doc_barcode_query()
-        args = {'id_doc':hashMap.get('doc_n'), 'name_good':current_elem['good_name']}
+        args = dict(id_good=current_elem['id_good'], id_property=current_elem['id_properties'],
+                    id_series=current_elem['id_series'], id_unit=current_elem['id_unit'], id_doc=hashMap.get('doc_n'))
+
         cards = ui_form_data.get_barcode_card()
-        res = ui_global.get_query_result(query_text,args,True)
-        #Формируем список карточек баркодов
+        res = ui_global.get_query_result(query_text, args, True)
+        # Формируем список карточек баркодов
         cards['customcards']['cardsdata'] = []
         for el in res:
-            #barcode_data = ui_barcodes.get_gtin_serial_from_datamatrix(el['barcode'])
-            if el['approved']=='1':
+            # barcode_data = ui_barcodes.get_gtin_serial_from_datamatrix(el['barcode'])
+            if el['approved'] == '1':
                 picture = '#f00c'
             else:
                 picture = ''
             row = {
-                'barcode': el['barcode'],
+                'barcode': el['mark_code'],
                 'picture': picture
             }
             cards['customcards']['cardsdata'].append(row)
@@ -308,7 +316,12 @@ def doc_details_listener(hashMap, _files=None, _data=None):
             hashMap.put('toast',
                         'Штрих код не зарегистрирован в базе данных. Проверьте товар или выполните обмен данными')
         elif res['Error']:
-            hashMap.put('toast',res['Error'])
+            if res['Error'] == 'AlreadyScanned':
+
+                hashMap.put('barcode', json.dumps({'barcode': res['Barcode'], 'doc_info': res['doc_info']}))
+                hashMap.put('ShowScreen', 'Удаление штрихкода')
+            else:
+                hashMap.put('toast', res['Descr'])
         else:
             hashMap.put('toast', 'Товар добавлен в документ')
         # hashMap.put('toast','1')
@@ -318,6 +331,53 @@ def doc_details_listener(hashMap, _files=None, _data=None):
         doc.id_doc = hashMap.get('id_doc')
         doc.mark_verified(doc, 1)
         hashMap.put("ShowScreen", "Документы")
+
+    return hashMap
+
+
+def delete_barcode_screen_start(hashMap, _files=None, _data=None):
+    # Находим ID документа
+    barcode_data = json.loads(hashMap.get('barcode'))['barcode']
+    # Найдем нужные поля запросом к базе
+    qtext = ui_form_data.get_markcode_query()
+    args = {'id_doc': hashMap.get('id_doc'),
+            'id_barcode': '01' + barcode_data['GTIN'] + '21' + barcode_data['SERIAL']}
+
+    res = ui_global.get_query_result(qtext, args, True)
+
+    hashMap.put('currentStr', json.dumps(res[0]))
+    hashMap.put("CurStr", str(res[0]['CurStr']))
+    hashMap.put("good", res[0]['good_name'])
+    hashMap.put("'code_art'", res[0]['good_code'])
+    hashMap.put("unit_name", str(res[0]['unit']))
+    hashMap.put('barcode_value', '01' + barcode_data['GTIN'] + '21' + barcode_data['SERIAL'])
+
+    return hashMap
+
+
+def delete_barcode_screen_click(hashMap, _files=None, _data=None):
+    listener = hashMap.get("listener")
+    if listener == "btn_barcode_cancel":
+
+        hashMap.put("ShowScreen", "Документ товары")
+
+    elif listener == "btn_barcode_delete":
+        doc = ui_global.Rs_doc
+        doc.id_doc = hashMap.get('id_doc')
+        current_barcode_str = int(hashMap.get("CurStr"))
+        el = json.loads(hashMap.get('currentStr'))
+
+        # doc.id_str = int(current_elem['key'])
+        # doc.qtty = float(hashMap.get('qtty'))
+        # doc.update_doc_str(doc, hashMap.get('price'))
+        query_text = 'Update  RS_docs_barcodes SET approved=? Where id=?'
+        ui_global.get_query_result(query_text, ('0', current_barcode_str))
+        doc.update_doc_table_data_from_barcode(doc, el, -1)
+
+        hashMap.put("ShowScreen", "Документ товары")
+
+    elif listener == "BACK_BUTTON":
+        hashMap.put("ShowScreen", "Документ товары")
 
     return hashMap
 
@@ -432,6 +492,7 @@ def new_doc_on_select(hashMap, _files=None, _data=None):
     elif listener == 'fld_data':
         hashMap.put('doc_date', hashMap.get('fld_data'))
     return hashMap
+
 
 def doc_barcodes_on_start(hashMap, _files=None, _data=None):
     doc_detail_list = ui_form_data.get_barcode_card()

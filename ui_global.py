@@ -20,7 +20,17 @@ db.bind(provider='sqlite', filename=db_path, create_db=True)
 
 # Штрихкоды barcode, id_good, id_property, id_unit
 class RS_barcodes(db.Entity):
-    barcode = Required(str)  # , lenght=200)
+    barcode = Required(str)  # , lenght=200) Также GTIN
+    id_good = Required(str)  # , lenght=36)
+    id_property = Optional(str)  # , lenght=36)
+    id_series = Optional(str)
+    id_unit = Optional(str)  # , lenght=36)
+
+
+#
+class RS_marking_codes(db.Entity):
+    id = PrimaryKey(str)
+    mark_code = Required(str)  # КОд маркировки формата 01+GTIN+21+SERIAL
     id_good = Required(str)  # , lenght=36)
     id_property = Optional(str)  # , lenght=36)
     id_series = Optional(str)
@@ -135,14 +145,15 @@ class RS_docs_table(db.Entity):
     price = Optional(float, sql_default=0)
     id_price = Optional(str)
     sent = Optional(int, sql_default=0)
+    last_updated = Optional(datetime.datetime, sql_default='CURRENT_TIMESTAMP')
 
 
 class RS_docs_barcodes(db.Entity):
     id_doc = Required(str)
-    barcode = Required(str)
+    #    barcode = Required(str)
     id_barcode = Required(str)
     barcode_from_scanner = Optional(str, nullable=True)
-    id_good = Optional(str,nullable=True)
+    #    id_good = Optional(str,nullable=True)
     is_plan = Required(str, sql_default='0')
     approved = Optional(str, sql_default='0', nullable=True)
 
@@ -177,6 +188,8 @@ class Rs_doc():
 
     def delete_doc(self):
         query_doc_table = 'DELETE FROM RS_docs_table WHERE id_doc = ?'
+        get_query_result(query_doc_table, (self.id_doc,))
+        query_doc_table = 'DELETE FROM RS_docs_barcodes WHERE id_doc = ?'
         get_query_result(query_doc_table, (self.id_doc,))
         query_doc = 'DELETE FROM RS_docs WHERE id_doc = ?'
         res = get_query_result(query_doc, (self.id_doc,))
@@ -219,60 +232,94 @@ class Rs_doc():
 
         return get_query_result(query, (self.id_doc, search_value))
 
-    def update_rs_doc_table(self, tbl_struct):
-        pass
-
-    def update_doc_table_data_from_barcode(self, el: dict):
+    def update_doc_table_data_from_barcode(self, el: dict , qtty = 1):
         # Сначала определим, есть ли в списке товаров документа наш товар:
         qtext = 'Select * from RS_docs_table Where id_doc=? and id_good = ? and id_properties = ? and id_series = ? and id_unit = ?'
-        args = (self.id_doc, el['id_good'],el['id_property'],el['id_series'], el['id_unit'])
-        res = get_query_result(qtext,args, True)
-        if res: #Нашли строки документа, добавляем количество
-            el = res[0]
-            qtext = 'UPDATE RS_docs_table SET qtty=qtty+? WHERE id = ?'
-            get_query_result(qtext, (1, el['id']))
-        else: #Такой строки нет, надо добавить
-            qtext = 'REPLACE INTO RS_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, price, id_price) VALUES (?,?,?,?,?,?,?,?)'
-            get_query_result(qtext, (self.id_doc, el['id_good'],el['id_properties'],el['id_series'], el['id_unit'], 1, 0, ''))
+        args = (self.id_doc, el['id_good'], el['id_property'], el['id_series'], el['id_unit'])
+        res = get_query_result(qtext, args, True)
+        if res:  # Нашли строки документа, добавляем количество
 
+            el = res[0]
+            # if el['qtty']+qtty == 0:
+            #     qtext = 'DELETE FROM RS_docs_table  WHERE id = ?'
+            #     get_query_result(qtext, (el['id'],))
+            #else:
+            qtext = 'UPDATE RS_docs_table SET qtty=qtty+?, last_updated = ?  WHERE id = ?'
+            get_query_result(qtext, (qtty, str(datetime.datetime.now()), el['id']))
+        else:  # Такой строки нет, надо добавить
+            qtext = 'REPLACE INTO RS_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, price, id_price) VALUES (?,?,?,?,?,?,?,?)'
+            get_query_result(qtext, (
+                self.id_doc, el['id_good'], el['id_property'], el['id_series'], el['id_unit'], qtty , 0, ''))
 
         return res
+
+    # Фугкция добавляет строку в маркировку документа на основании баркода (dataMatrix)
+    def add_marked_codes_in_doc(self, barcode_info):
+        qtext = 'SELECT * FROM RS_marking_codes Where mark_code =?'
+        q_doc_text = 'REPLACE INTO RS_docs_barcodes (id_doc, id_barcode, barcode_from_scanner, is_plan, approved) VALUES (?,?,?,?,?)'
+        # Ищем код маркировки в таблице RS_marking_codes по GTIN и SERIAL
+        res = get_query_result(qtext, ('01' + barcode_info['GTIN'] + '21' + barcode_info['SERIAL'],), True)
+        if res:
+            # Нашли такой баркод в списке маркировки, заполняем строку маркировки документа
+
+            get_query_result(q_doc_text, (self.id_doc, res[0]['id'], barcode_info['FullBarcode'], '0', '1'), True)
+            return res
+        else:  # Не нашли - пробуем искать по GTIN в таблице баркодов
+            res = self.find_barcode_in_table(self, barcode_info['GTIN'])
+            if res:  # Нашли по GTIN, заполняем документ
+                # Сначала заполним таблицу RS_marking_codes
+                qtext = 'REPLACE INTO RS_marking_codes (id, mark_code, id_good, id_property, id_series, id_unit) VALUES (?,?,?,?,?,?)'
+                mark_code = '01' + barcode_info['GTIN'] + '21' + barcode_info['SERIAL']
+                get_query_result(qtext, (
+                    mark_code, mark_code, res['id_good'], res['id_property'], res['id_series'], res['id_unit']))
+                # И теперь таблицу документа со ссылкой на RS_marking_codes
+                get_query_result(q_doc_text, (self.id_doc, mark_code, barcode_info['FullBarcode'], '0', '1'))
+            else:
+                pass
 
     def find_barcode_on_doc(self, barcode):
         # Получим структуру баркода
         barcode_info = ui_barcodes.parse_barcode(barcode)
+        if barcode_info.__contains__('ERROR'):
+            return {'Error': 'Invalid Barcode', 'Descr': 'Неверный штрихкод',
+                    'Barcode': barcode_info, 'doc_info': self.id_doc}
         # ... и найдем по нему все что есть в базе
         shema = barcode_info['SCHEME']
 
         if get_constants('use_mark') == 'true':
             if shema == 'GS1':
                 barcode_info['FullBarcode'] = barcode
-                res = find_barcode_in_barcode_table(self, barcode_info)  # получает несколько строк:
+                res = find_barcode_in_marking_codes_table(self, barcode_info)  # получает несколько строк:
                 # 1 - по полному совпадению GTIN и серия, ссылка на товар
                 # 2 - по совпадению GTIN и ссылка на товар
                 if res:  # нашли записи по баркоду в документе
                     for el in res:
-                        if el['TypeOfUnion'] == 'FullMatch' and el['GTIN'] and el['id_good']:  # нашли строку по полному совпадению GTIN и серия, ссылка на товар
+                        if el['id_barcode'] and el['id_good']:  # нашли строку по полному совпадению GTIN и серия, ссылка на товар
                             if el['approved'] == '1':  # Такая марка уже была отсканирована
-                                return {'Error': 'Такая марка уже была отсканирована', 'Barcode': barcode_info}
-                            if el['is_plan'] == '1':  # товар был выгружен из учетной системы, надо только подтвердить строку и заполнить код со сканера
-                                query_text = 'Update  RS_docs_barcodes SET approved=?, barcode_from_scanner=? Where id=?'
-                                get_query_result(query_text, ('1', barcode, int(el['id'])))
-                                self.update_rs_doc_table(self,self.update_doc_table_data_from_barcode(self, el))
-                                return {'Result':'Все ок', 'Error':None}
-                            else:
-                                pass  # Добавляем строку
+                                return {'Error': 'AlreadyScanned', 'Descr': 'Такая марка уже была отсканирована',
+                                        'Barcode': barcode_info, 'doc_info': el}
+                            # if el['is_plan'] == '1':  # товар был выгружен из учетной системы, надо только подтвердить строку и заполнить код со сканера
+                            query_text = 'Update  RS_docs_barcodes SET approved=?, barcode_from_scanner=? Where id=?'
+                            get_query_result(query_text, ('1', barcode, int(el['id'])))
+                            self.update_doc_table_data_from_barcode(self, el)
+
+                            return {'Result': 'Все ок', 'Error': None, 'barcode': barcode_info['GTIN'] + barcode_info['SERIAL']}
 
 
-                        elif el['TypeOfUnion'] == 'On_GTIN' and el['GTIN']:  # нашли строку только по  совпадению GTIN ,
+
+                        elif el['GTIN']:  # нашли строку только по  совпадению GTIN ,
                             pass  # Ситуация, когда надо добавить GTIN и серию в строку, пока не делаем
                         else:  # Ничего в таблице не нашли, добавляем строку
-                            pass  # реализовать
-                else: #Записей в документе нет, добавляем
-                    return {'Error': 'Марка не найдена в документе', 'Barcode': barcode_info}
+                            self.add_marked_codes_in_doc(self, barcode_info)
+                            return {'Result': 'Марка добавлена в документ', 'Error': None,
+                                    'barcode': el['GTIN'] + el['SERIAL']}
+                else:  # Записей в документе нет, добавляем
+                    res = self.add_marked_codes_in_doc(self, barcode_info)
 
-
-
+                    self.update_doc_table_data_from_barcode(self, res[0])
+                    return {'Result': 'Марка добавлена в документ', 'Error': None,
+                            'barcode': barcode_info['GTIN'] + barcode_info['SERIAL']}
+                    # return {'Error': 'NotFound', 'Descr':'Марка не найдена в документе', 'Barcode': barcode_info}
 
         else:
 
@@ -282,7 +329,7 @@ class Rs_doc():
                 res = self.find_barcode_in_table(self, search_value)
             elif shema == 'GS1':
 
-                search_value = '01' + barcode_info['GTIN'] + '21' + barcode_info['SERIAL']
+                search_value = barcode_info['GTIN']
                 res = self.find_barcode_in_table(self, search_value)
 
             if not len(res) == 0:
@@ -301,9 +348,9 @@ class Rs_doc():
                 query = 'REPLACE INTO RS_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, price, id_price) VALUES (?,?,?,?,?,?,?,?)'
                 get_query_result(query, (self.id_doc, elem[0], elem[1], '', elem[2], 1, 0, ''))
             else:
-                query = 'UPDATE RS_docs_table SET qtty=qtty+? WHERE id = ?'
-                get_query_result(query, (1, elem[3]))
-            return {'Result':'Все ок', 'Error':None}
+                query = 'UPDATE RS_docs_table SET qtty=qtty+?, last_updated= ?  WHERE id = ?'
+                get_query_result(query, (1, str(datetime.datetime.now()), elem[3]))
+            return {'Result': 'Все ок', 'Error': None}
 
     def add(self, args):
         query = 'INSERT INTO RS_docs(id_doc, doc_type, doc_n, doc_data, id_countragents, id_warehouse, verified, sent) VALUES (?,?,?,?,?,?,1,1)'
@@ -313,23 +360,28 @@ class Rs_doc():
         query = 'Select max(id_doc) From(Select id_doc from RS_docs WHERE id_doc<10000)'
         res = get_query_result(query)
         if len(res) == 0:
-            return '001'
+            return '1'
         else:
-            return str(int(res[0][0]) + 1)
+            val = res[0][0]
+            if val is None:
+                return '1'
+            else:
+                return str(int(val) + 1)
 
 
-def find_barcode_in_barcode_table(self, struct_barcode: list) -> object:
+# Функция получает строки маркировки документа по значению маркировки
+def find_barcode_in_marking_codes_table(self, struct_barcode: list) -> object:
     query_text = ui_form_data.get_query_mark_find_in_doc()
-    args_dict={}
-    args_dict['set_barcode']  = '01' + struct_barcode['GTIN'] + '21' + struct_barcode['SERIAL']
-    args_dict['gtin'] = struct_barcode['GTIN']
-    args_dict['id_doc']= self.id_doc
+    args_dict = {}
+    args_dict['set_barcode'] = '01' + struct_barcode['GTIN'] + '21' + struct_barcode['SERIAL']
+
+    args_dict['id_doc'] = self.id_doc
 
     res = get_query_result(query_text, args_dict, True)
     return res
 
 
-def get_query_result(query_text: object, args: object = "", return_dict = False) -> object:
+def get_query_result(query_text: object, args: object = "", return_dict=False) -> object:
     # **********************
 
     conn = None
@@ -344,10 +396,10 @@ def get_query_result(query_text: object, args: object = "", return_dict = False)
         cursor.execute(query_text, args)
     else:
         cursor.execute(query_text)
-#Если надо - возвращаем не результат запроса, а словарь с импортированным результатом
+    # Если надо - возвращаем не результат запроса, а словарь с импортированным результатом
     if return_dict:
         res = [dict(line) for line in
-                        [zip([column[0] for column in cursor.description], row) for row in cursor.fetchall()]]
+               [zip([column[0] for column in cursor.description], row) for row in cursor.fetchall()]]
     else:
         res = cursor.fetchall()
     conn.commit()
@@ -427,8 +479,3 @@ def put_constants(args):
     sql_update_query = """Update RS_constants set use_series = ?, use_properties = ?, use_mark = ?, path = ?,
      delete_files = ? """
     res = get_query_result(sql_update_query, args)
-
-
-
-
-

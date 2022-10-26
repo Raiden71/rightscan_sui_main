@@ -313,8 +313,9 @@ def get_doc_details_query():
     RS_docs_table.qtty,
     RS_docs_table.qtty_plan,
     RS_docs_table.price,
-    RS_price_types.name as price_name
-    FROM RS_docs_table
+    RS_price_types.name as price_name,
+    RS_docs_table.qtty_plan - RS_docs_table.qtty as IsDone
+    FROM RS_docs_table 
     
     
     
@@ -328,7 +329,9 @@ def get_doc_details_query():
     ON RS_units.id_elem=RS_docs_table.id_unit
     LEFT JOIN RS_price_types
     ON RS_price_types.id = RS_docs_table.id_price
-    WHERE id_doc = $arg1"""
+    WHERE id_doc = $arg1
+    ORDER BY RS_docs_table.last_updated DESC 
+    """
     return query_text
 
 
@@ -616,41 +619,26 @@ def get_query_mark_find_in_doc():
 SELECT * FROM (
 
 SELECT 
-'FullMatch' as TypeOfUnion,
 RS_docs_barcodes.id,
 RS_docs_barcodes.id_doc,
-RS_docs_barcodes.barcode,
+
 RS_docs_barcodes.id_barcode,
 
-IFNULL(Bk2.barcode, RS_barc.barcode) AS GTIN,
-IFNULL(Bk2.id_good, RS_barc.id_good) AS id_good,
-IFNULL(Bk2.id_property, RS_barc.id_property) AS id_property ,
-IFNULL(Bk2.id_series, RS_barc.id_series) AS id_series,
-IFNULL(Bk2.id_unit, RS_barc.id_unit)  AS id_unit,
+IFNULL(RS_marking_codes.mark_code, '0') AS mark_code,
+IFNULL(RS_marking_codes.id_good, '') AS id_good,
+IFNULL(RS_marking_codes.id_property, '') AS id_property ,
+IFNULL(RS_marking_codes.id_series, '') AS id_series,
+IFNULL(RS_marking_codes.id_unit, '')  AS id_unit,
 
 RS_docs_barcodes.is_plan,
 RS_docs_barcodes.approved
+
 FROM RS_docs_barcodes
     
+    LEFT JOIN RS_marking_codes As RS_marking_codes
+    ON RS_marking_codes.id = RS_docs_barcodes.id_barcode
 
-    LEFT JOIN (SELECT 
-                Bk.barcode,
-                Bk.id_good,
-                Bk.id_property,
-                Bk.id_series,
-                Bk.id_unit 
-                FROM RS_barcodes as Bk
-                WHERE Bk.barcode Like :gtin LIMIT 1) AS RS_barc
-    ON TRUE
-    
-    LEFT JOIN RS_barcodes As Bk2
-    ON Bk2.barcode = RS_docs_barcodes.barcode
-
-WHERE id_doc = :id_doc  and RS_docs_barcodes.barcode = :set_barcode)
-
-    
-ORDER  BY TypeOfUnion
-
+WHERE id_doc = :id_doc  and RS_marking_codes.mark_code = :set_barcode)
 '''
     #
     # SELECT * FROM (
@@ -764,11 +752,66 @@ def get_barcode_card():
 
 def get_doc_barcode_query():
     ls = '''
-    SELECT barcode,
+    SELECT 
+    id_barcode,
+    RS_marking_codes.mark_code as mark_code,
     approved
     FROM RS_docs_barcodes
-    Join (SELECT id_elem FROM RS_goods WHERE name = :name_good) as Good
-    ON Good.id_elem = RS_docs_barcodes.id_good
+
+    JOIN RS_marking_codes 
+    ON RS_marking_codes.id = RS_docs_barcodes.id_barcode AND
+    RS_marking_codes.id_good = :id_good AND
+    RS_marking_codes.id_property = :id_property AND
+    RS_marking_codes.id_series = :id_series AND
+    RS_marking_codes.id_unit = :id_unit 
     
-     WHERE id_doc = :id_doc'''
+     WHERE RS_docs_barcodes.id_doc = :id_doc '''
     return ls
+
+def get_markcode_query():
+    return '''
+    SELECT 
+    Temp_query.CurStr as CurStr,
+    Temp_query.id_barcode,
+    Temp_query.mark_code,
+    Temp_query.approved,
+    Temp_query.id_good,
+    Temp_query.id_properties as id_property,
+    Temp_query.id_series,
+    Temp_query.id_unit,
+    RS_goods.name as good_name,
+    RS_properties.name as properties,
+    RS_series.name as series,
+    RS_units.name as unit,
+    RS_goods.code AS good_code,
+    Temp_query.is_plan
+    
+    
+ FROM (
+SELECT 
+    RS_docs_barcodes.id as CurStr,
+    id_barcode,
+    RS_marking_codes.mark_code,
+    approved,
+    RS_marking_codes.id_good,
+    RS_marking_codes.id_property as id_properties,
+    RS_marking_codes.id_series,
+    RS_marking_codes.id_unit,
+    RS_docs_barcodes.is_plan
+    
+    FROM RS_docs_barcodes
+
+    JOIN RS_marking_codes 
+    ON RS_marking_codes.id = RS_docs_barcodes.id_barcode 
+    
+     WHERE RS_docs_barcodes.id_doc = :id_doc AND id_barcode = :id_barcode) AS Temp_query
+     
+ LEFT JOIN RS_goods 
+    ON RS_goods.id_elem=Temp_query.id_good
+    LEFT JOIN RS_properties
+    ON RS_properties.id_elem = Temp_query.id_properties
+    LEFT JOIN RS_series
+    ON RS_series.id_elem = Temp_query.id_series
+    LEFT JOIN RS_units
+    ON RS_units.id_elem=Temp_query.id_unit
+    '''
