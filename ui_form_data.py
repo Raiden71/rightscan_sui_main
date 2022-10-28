@@ -26,7 +26,7 @@ def get_doc_card():
                             "type": "CheckBox",
                             "Value": "@completed",
                             "Variable": "CheckBox1",
-                            "TextSize": "18",
+                            "TextSize": "32",
                             "NoRefresh": False,
                             "document_type": "",
                             "mask": "",
@@ -207,6 +207,15 @@ def get_goods_card():
                                 {
                                     "type": "TextView",
                                     "show_by_condition": "",
+                                    "Value": "@GTIN",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": ""
+                                },
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
                                     "Value": "@type_name",
                                     "NoRefresh": False,
                                     "document_type": "",
@@ -241,14 +250,14 @@ def get_goods_query():
     RS_goods.art,
     RS_goods.name,
     RS_goods.type_good,
-    RS_types_goods.name,
+    RS_types_goods.name AS types_goods,
     RS_goods.unit,
     RS_units.name
     FROM RS_goods
     LEFT JOIN RS_types_goods
-    ON RS_types_goods.id_elem=RS_goods.type_good
+    ON RS_types_goods.id_elem = RS_goods.type_good
     LEFT JOIN RS_units
-    ON RS_units.id_elem=RS_goods.unit"""
+    ON RS_units.id_owner = RS_goods.id_elem"""
     return query_text
 
 

@@ -8,7 +8,7 @@ from flask import request
 
 app = Flask(__name__)
 
-
+#0100608940553886215,iPGSQpBe!&B
 def settings_on_start(hashMap, _files=None, _data=None):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -49,8 +49,8 @@ def settings_on_click(hashMap, _files=None, _data=None):
     if path is None: path = '//storage/emulated/0/download/'
 
     ui_global.put_constants((use_series, use_properties, use_mark, path, delete_files))
-
-    if hashMap.get('listener') == 'btn_copy_base':
+    listener = hashMap.get('listener')
+    if listener == 'btn_copy_base':
         pass
         # with open('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS', 'rb') as f:
         #     r = requests.post('http://192.168.0.45:2444/post', files={'SimpleWMS': f})
@@ -59,7 +59,7 @@ def settings_on_click(hashMap, _files=None, _data=None):
         # else:
         #     hashMap.put('toast', 'Ошибка соединения')
 
-    elif hashMap.get('listener') == 'btn_local_files':
+    elif listener == 'btn_local_files':
         # path = hashMap.get('localpath')
         path = hashMap.get('path')
         delete_files = hashMap.get('delete_files')
@@ -69,9 +69,14 @@ def settings_on_click(hashMap, _files=None, _data=None):
         ret_text = ui_csv.list_folder(path, delete_files)
 
         hashMap.put('toast', ret_text)
-    elif hashMap.get('listener') == 'btn_export':
+    elif listener == 'btn_export':
+        path = 'ОбменТСД/НА/'
         ui_csv.export_csv(path, hashMap.get('ip_adr'), hashMap.get('ANDROID_ID'))
         hashMap.put('toast', 'Данные выгружены')
+
+    elif listener == 'ON_BACK_PRESSED':
+
+        hashMap.put('FinishProcess', '')
 
     return hashMap
 
@@ -93,6 +98,7 @@ def goods_on_start(hashMap, _files=None, _data=None):
     for record in results:
         product_row = {
             'key': str(record[0]),
+            'GTIN': str(record[0]),
             'name': str(record[3]),
             'code': str(record[1]),
             'type_name': str(record[5]),
@@ -244,6 +250,12 @@ def docs_on_select(hashMap, _files=None, _data=None):
             hashMap.put('ShowScreen', 'Документы')
     elif listener == "btn_add_doc":
         hashMap.put('ShowScreen', 'Новый документ')
+
+    elif listener == 'ON_BACK_PRESSED':
+
+        hashMap.put('FinishProcess', '')
+
+        #hashMap.put('ShowScreen', 'Новый документ')
     return hashMap
 
 
@@ -257,8 +269,8 @@ def doc_details_listener(hashMap, _files=None, _data=None):
     #     current_elem = jlist['customcards']['cardsdata'][int(current_str)-1]
     # else:
     #     current_elem = None
-
-    if hashMap.get("listener") == "CardsClick":
+    listener = hashMap.get('listener')
+    if listener == "CardsClick":
 
         # Находим ID документа
         current_str = hashMap.get("selected_card_position")
@@ -300,14 +312,14 @@ def doc_details_listener(hashMap, _files=None, _data=None):
 
         hashMap.put("ShowScreen", "Товар")
 
-    elif hashMap.get("listener") == "BACK_BUTTON":
+    elif listener == "BACK_BUTTON":
         hashMap.put("ShowScreen", "Документы")
-    elif hashMap.get("listener") == "btn_barcodes":
+    elif listener == "btn_barcodes":
 
         hashMap.put("ShowScreen", "Документ штрихкоды")
 
 
-    elif hashMap.get('listener') == 'barcode':
+    elif listener == 'barcode':
         doc = ui_global.Rs_doc
         doc.id_doc = hashMap.get('id_doc')
         barcode = hashMap.get('barcode_camera')
@@ -326,10 +338,13 @@ def doc_details_listener(hashMap, _files=None, _data=None):
             hashMap.put('toast', 'Товар добавлен в документ')
         # hashMap.put('toast','1')
 
-    elif hashMap.get('listener') == 'btn_doc_mark_verified':
+    elif listener == 'btn_doc_mark_verified':
         doc = ui_global.Rs_doc
         doc.id_doc = hashMap.get('id_doc')
         doc.mark_verified(doc, 1)
+        hashMap.put("ShowScreen", "Документы")
+
+    elif listener == 'ON_BACK_PRESSED':
         hashMap.put("ShowScreen", "Документы")
 
     return hashMap
@@ -378,6 +393,8 @@ def delete_barcode_screen_click(hashMap, _files=None, _data=None):
 
     elif listener == "BACK_BUTTON":
         hashMap.put("ShowScreen", "Документ товары")
+    elif listener == 'ON_BACK_PRESSED':
+        hashMap.put("ShowScreen", "Документ товары")
 
     return hashMap
 
@@ -394,7 +411,8 @@ def elem_on_click(hashMap, _files=None, _data=None):
 
         doc = ui_global.Rs_doc
         doc.id_str = int(current_elem['key'])
-        doc.qtty = float(hashMap.get('qtty'))
+        qtty = hashMap.get('qtty')
+        doc.qtty = float(qtty) if qtty else 0
         doc.update_doc_str(doc, hashMap.get('price'))
 
         hashMap.put("ShowScreen", "Документ товары")
@@ -405,6 +423,8 @@ def elem_on_click(hashMap, _files=None, _data=None):
         hashMap.put("ShowScreen", "Документ товары")
     elif listener == "":
         hashMap.put("qtty", str(float(hashMap.get('qtty'))))
+    elif listener == 'ON_BACK_PRESSED':
+        hashMap.put("ShowScreen", "Документ товары")
 
     return hashMap
 
@@ -427,6 +447,10 @@ def goods_on_click(hashMap, _files=None, _data=None):
 
         hashMap.put("ShowScreen", "Цены товара")
 
+    elif listener == 'ON_BACK_PRESSED':
+
+        hashMap.put('FinishProcess', '')
+
     return hashMap
 
 
@@ -442,16 +466,17 @@ def price_on_start(hashMap, _files=None, _data=None):
     for record in results:
         product_row = {
             'key': str(record[0]),
-            'price_type': str(record[7]),
-            'price': str(record[4])}
-        goods_price_list['customcards']['cardsdata'].append(product_row)
-
-    hashMap.put("good_prices", json.dumps(goods_price_list))
-
+            'good_name': str(record[3]),
+            # 'id_properties': str(record[3]),
+            'properties_name': str(record[5]),
+            # 'id_series': str(record[5]),
+            'series_name': str(record[7])}
     return hashMap
 
 
 def price_on_click(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        hashMap.put("ShowScreen", "Товары список")
     return hashMap
 
 
@@ -474,24 +499,47 @@ def new_doc_on_start(hashMap, _files=None, _data=None):
 
     if not hashMap.containsKey('doc_date'):
         hashMap.put('doc_date', '01.01.2022')
+
     return hashMap
 
 
 def new_doc_on_select(hashMap, _files=None, _data=None):
     listener = hashMap.get("listener")
+    type = hashMap.get('doc_type_click')
+    if not type:
+        type = 'Приход'
+    fld_number = hashMap.get('fld_number')
+
+
+
 
     if listener == "btn_ok":
-        ui_global.Rs_doc.add('01', ('001',
-                                    hashMap.get('doc_type_click'),
-                                    hashMap.get('fld_number'),
-                                    hashMap.get('fld_data'),
-                                    ui_global.get_by_name(hashMap.get('fld_countragent'), 'RS_countragents'),
-                                    ui_global.get_by_name(hashMap.get('doc_warehouse'), 'RS_warehouses')))
-        hashMap.put('ShowScreen', 'Документы')
+        if not fld_number:
+
+            id = ui_global.Rs_doc.get_new_id(1)
+            #id = (f'{id:04}')
+            id = "{0:0>4}".format(id)
+        else:
+            id = fld_number
+
+        try:
+            ui_global.Rs_doc.add('01', (id,
+                                        type,
+                                        id, #hashMap.get('fld_number')
+                                        hashMap.get('fld_data'),
+                                        ui_global.get_by_name(hashMap.get('fld_countragent'), 'RS_countragents'),
+                                        ui_global.get_by_name(hashMap.get('doc_warehouse'), 'RS_warehouses')))
+            hashMap.put('ShowScreen', 'Документы')
+        except:
+            hashMap.put('toast', 'Номер документа неуникален!')
+
+
     elif listener == 'btn_cancel':
         hashMap.put('ShowScreen', 'Документы')
     elif listener == 'fld_data':
         hashMap.put('doc_date', hashMap.get('fld_data'))
+    elif listener == 'ON_BACK_PRESSED':
+        hashMap.put("ShowScreen", "Документы")
     return hashMap
 
 
@@ -517,6 +565,9 @@ def doc_barcodes_on_start(hashMap, _files=None, _data=None):
 
 
 def doc_barcodes_listener(hashMap, _files=None, _data=None):
+
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        hashMap.put("ShowScreen", "Документ товары")
     return hashMap
 
 

@@ -40,27 +40,41 @@ def get_query_text(q_name='') -> str:
 
 def get_query_text_export():
     return '''
-    SELECT 
-'0' AS GTIN,
-RS_docs_barcodes.id_good,
-RS_goods.name,
-1 as DeclaredQuantity,
-CASE approved
-    WHEN '1' THEN 1
-    ELSE 0
-END AS CurrentQuantity,
-barcode_from_scanner as Марка,
-barcode AS МаркаИСМП,
-RS_docs_barcodes.id_doc as Инвойс,
-'Чужой' as Принадлежность 
-FROM RS_docs_barcodes 
-LEFT JOIN RS_docs_table
-ON RS_docs_table.id_doc =RS_docs_barcodes.id_doc 
-AND  RS_docs_table.id_good =RS_docs_barcodes.id_good
- 
-LEFT JOIN RS_goods 
-ON RS_goods.id_elem = RS_docs_barcodes.id_good
-WHERE RS_docs_barcodes.id_doc = ?
+         SELECT 
+        '0' AS GTIN,
+        RS_marking.id_good,
+        RS_marking.name, 
+        1 as DeclaredQuantity,
+        CASE approved
+            WHEN '1' THEN 1
+            ELSE 0
+        END AS CurrentQuantity,
+        barcode_from_scanner as Марка,
+        RS_marking.mark_code AS МаркаИСМП,
+        RS_marking.id_property as Инвойс,
+        'Чужой' as Принадлежность 
+        
+        FROM RS_docs_barcodes 
+      
+        LEFT JOIN (SELECT 
+                    id AS id_barcode,
+                    mark_code AS mark_code,
+                    id_good,
+                    id_property,
+                    id_series,
+                    id_unit,
+                    RS_goods.name,
+                    RS_goods.code
+                    
+                    FROM RS_marking_codes
+                    LEFT JOIN RS_goods 
+                    ON RS_goods.id_elem  = RS_marking_codes.id_good
+                    WHERE RS_marking_codes.id IN 
+                        (SELECT id_barcode FROM RS_docs_barcodes 
+                        WHERE RS_docs_barcodes.id_doc = :id_doc)) AS RS_marking
+        ON RS_docs_barcodes.id_barcode = RS_marking.id_barcode  
+        
+        WHERE RS_docs_barcodes.id_doc = :id_doc
 '''
 
 def normalize_gtin(gtin: str) -> str:
@@ -85,6 +99,7 @@ def load_from_csv(path='', file=''):
             rs_doc_table_data = []
             rs_doc_barcode = []
             rs_marking_codes =[]
+            rs_properties = []
             temp_doc_n = ''
             temp_good =''
             doc_num = ui_global.Rs_doc.get_new_id('')
@@ -96,7 +111,7 @@ def load_from_csv(path='', file=''):
                         temp_doc_n = row[8]
                     # RS_docs_table(id_doc, id_good, id_properties, id_series, id_unit, qtty, qtty_plan, price, id_price)
                     if temp_good != row[0]:
-                        rs_doc_table_data.append((doc_num, row[0], '', '', row[1]+row[0], int(row[7]), int(row[6]), '', ''))
+                        rs_doc_table_data.append((doc_num, row[0], row[8], '', row[1]+row[0], int(row[7]), int(row[6]), '', ''))
                         curr_count = rs_doc_table_data.__len__()-1
                         temp_good = row[0]
                     else:
@@ -105,11 +120,11 @@ def load_from_csv(path='', file=''):
                         lst[6]=int(lst[6])+int(row[6])
                         rs_doc_table_data[curr_count] = tuple(lst)
                         #rs_doc_table_data[curr_count][6]=int(rs_doc_table_data[curr_count][6]) + int(row[6])
-
-                    # RS_docs_barcodes (id_doc, id_barcode, is_plan)
-                    rs_doc_barcode.append((doc_num, row[5], '1'))
-                    #RS_marking_codes(id, mark_code, id_good, id_property, id_series, id_unit) VALUES(?, ?, ?, ?, ?, ?)
-                    rs_marking_codes.append((row[5], row[5],row[0],'','',row[1]+row[0]))
+                    if row[5]:
+                        # RS_docs_barcodes (id_doc, id_barcode, is_plan)
+                        rs_doc_barcode.append((doc_num, row[5], '1'))
+                        #RS_marking_codes(id, mark_code, id_good, id_property, id_series, id_unit) VALUES(?, ?, ?, ?, ?, ?)
+                        rs_marking_codes.append((row[5], row[5],row[0],row[8],'',row[1]+row[0]))
 
                 elif my_reader.line_num == 5:
                     list_headers = row.copy()
@@ -121,6 +136,10 @@ def load_from_csv(path='', file=''):
         ui_global.bulk_query_replace(get_query_text('RS_marking_codes'), rs_marking_codes)
 
     elif file[:14] == 'initial_dicts_':
+        #Добавим тип товара для всех таблиц
+        qtext = 'REPLACE INTO RS_types_goods (id_elem, name) VALUES (?,?)'
+        ui_global.get_query_result(qtext, ('Товар','Товар'))
+
         with open(path, 'r', newline='', encoding='utf-8') as csvfile:
 
             my_reader = csv.reader(csvfile, dialect='excel', delimiter=';', quotechar='"')
@@ -148,7 +167,7 @@ def load_from_csv(path='', file=''):
 
                 else:  # заполняем таблицы параметров запроса к SQL
                     # id_elem, co de, art, name, unit, type_good, description
-                    rs_goods_data.append((row[2], row[3], row[5], row[4], row[1], '001', row[15]))
+                    rs_goods_data.append((row[2], row[3], row[5], row[4], row[1], 'Товар', row[15]))
                     # id_elem, id_owner, code, name, nominator, denominator, int_reduction
                     rs_units_data.append((row[1]+row[2], row[2], row[1], row[1], 1, 1, row[1]))
                     # barcode, id_good, id_property, id_series, id_unit
@@ -182,11 +201,12 @@ def list_folder(path: str, delete_files: bool):
 
 def export_csv(path, IP, AndroidID):
     docs = ui_global.get_query_result('SELECT id_doc, doc_n from RS_docs Where verified = 1')
-
+    count =0
     for doc_item in docs:
         qtext = get_query_text_export()
-        res = ui_global.get_query_result(qtext,(doc_item[0],),True)
 
+        res = ui_global.get_query_result(qtext,(doc_item[0],),True)
+        count += 1
         with open(path + 'doc_out_'+ doc_item[1] +'.csv', 'w', newline='', encoding='utf-8') as csvfile:
             my_reader = csv.writer(csvfile, dialect='excel', delimiter=';', quotechar='"')
             my_reader.writerow(('Name','UserName','DeviceId','DeviceIP'))
@@ -197,7 +217,7 @@ def export_csv(path, IP, AndroidID):
                 el['GTIN']=gtin['GTIN']
                 my_reader.writerow((el['GTIN'],el['id_good'],el['name'],el['DeclaredQuantity'], el['CurrentQuantity'], el['Марка'],el['МаркаИСМП'], el['Инвойс'],el['Принадлежность']))
 
-
+    return str(count)+ ' документов'
 #export_csv('ОбменТСД/НА/') #'
 
 

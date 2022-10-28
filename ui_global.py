@@ -167,6 +167,7 @@ class RS_constants(db.Entity):
     reserved = Optional(str)
 
 
+
 db.generate_mapping(create_tables=True)
 db.disconnect
 
@@ -218,6 +219,7 @@ class Rs_doc():
                  SELECT
                  RS_barcodes.id_good,
                  RS_barcodes.id_property,
+                 RS_barcodes.id_series,
                  RS_barcodes.id_unit,
                  RS_docs_table.id,
                  RS_docs_table.qtty        
@@ -230,12 +232,32 @@ class Rs_doc():
                  where barcode ''' + func_compared
         # query = query + func_compared
 
-        return get_query_result(query, (self.id_doc, search_value))
+        return get_query_result(query, (self.id_doc, search_value), True)
 
-    def update_doc_table_data_from_barcode(self, el: dict , qtty = 1):
+    def find_barcode_in_mark_table(self, search_value: str, func_compared='=?') -> object:
+        query = '''
+                        SELECT
+                        RS_marking_codes.id_good,
+                        RS_marking_codes.id_property,
+                        RS_marking_codes.id_series,
+                        RS_marking_codes.id_unit,
+                        RS_docs_table.id,
+                        RS_docs_table.qtty        
+                        FROM RS_marking_codes
+                        Left join RS_docs_table ON
+                        RS_docs_table.id_good= RS_marking_codes.id_good and
+                        RS_docs_table.id_properties= RS_marking_codes.id_property and
+                        RS_docs_table.id_unit= RS_marking_codes.id_unit And
+                        RS_docs_table.id_doc=?
+                        where mark_code  ''' + func_compared
+        # query = query + func_compared
+
+        return get_query_result(query, (self.id_doc, search_value), True)
+
+    def update_doc_table_data_from_barcode(self, elem_for_add: dict , qtty = 1):
         # Сначала определим, есть ли в списке товаров документа наш товар:
         qtext = 'Select * from RS_docs_table Where id_doc=? and id_good = ? and id_properties = ? and id_series = ? and id_unit = ?'
-        args = (self.id_doc, el['id_good'], el['id_property'], el['id_series'], el['id_unit'])
+        args = (self.id_doc, elem_for_add['id_good'], elem_for_add['id_property'], elem_for_add['id_series'], elem_for_add['id_unit'])
         res = get_query_result(qtext, args, True)
         if res:  # Нашли строки документа, добавляем количество
 
@@ -249,7 +271,7 @@ class Rs_doc():
         else:  # Такой строки нет, надо добавить
             qtext = 'REPLACE INTO RS_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, price, id_price) VALUES (?,?,?,?,?,?,?,?)'
             get_query_result(qtext, (
-                self.id_doc, el['id_good'], el['id_property'], el['id_series'], el['id_unit'], qtty , 0, ''))
+                self.id_doc, elem_for_add['id_good'], elem_for_add['id_property'], elem_for_add['id_series'], elem_for_add['id_unit'], qtty , 0, ''))
 
         return res
 
@@ -265,13 +287,14 @@ class Rs_doc():
             get_query_result(q_doc_text, (self.id_doc, res[0]['id'], barcode_info['FullBarcode'], '0', '1'), True)
             return res
         else:  # Не нашли - пробуем искать по GTIN в таблице баркодов
-            res = self.find_barcode_in_table(self, barcode_info['GTIN'])
+            res = self.find_barcode_in_mark_table(self, '01'+barcode_info['GTIN'] + '%', 'Like ?' )
             if res:  # Нашли по GTIN, заполняем документ
+                el = res[0]
                 # Сначала заполним таблицу RS_marking_codes
                 qtext = 'REPLACE INTO RS_marking_codes (id, mark_code, id_good, id_property, id_series, id_unit) VALUES (?,?,?,?,?,?)'
                 mark_code = '01' + barcode_info['GTIN'] + '21' + barcode_info['SERIAL']
                 get_query_result(qtext, (
-                    mark_code, mark_code, res['id_good'], res['id_property'], res['id_series'], res['id_unit']))
+                    mark_code, mark_code, el['id_good'], el['id_property'], el['id_series'], el['id_unit']))
                 # И теперь таблицу документа со ссылкой на RS_marking_codes
                 get_query_result(q_doc_text, (self.id_doc, mark_code, barcode_info['FullBarcode'], '0', '1'))
             else:
@@ -314,8 +337,8 @@ class Rs_doc():
                             return {'Result': 'Марка добавлена в документ', 'Error': None,
                                     'barcode': el['GTIN'] + el['SERIAL']}
                 else:  # Записей в документе нет, добавляем
-                    res = self.add_marked_codes_in_doc(self, barcode_info)
-
+                    self.add_marked_codes_in_doc(self, barcode_info)
+                    res = find_barcode_in_marking_codes_table(self, barcode_info)
                     self.update_doc_table_data_from_barcode(self, res[0])
                     return {'Result': 'Марка добавлена в документ', 'Error': None,
                             'barcode': barcode_info['GTIN'] + barcode_info['SERIAL']}
@@ -344,12 +367,12 @@ class Rs_doc():
                 else:  # Такого товара в базе нет
                     return None
 
-            if elem[3] == None:
+            if elem['id'] == None:
                 query = 'REPLACE INTO RS_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, price, id_price) VALUES (?,?,?,?,?,?,?,?)'
-                get_query_result(query, (self.id_doc, elem[0], elem[1], '', elem[2], 1, 0, ''))
+                get_query_result(query, (self.id_doc, elem['id_good'], elem['id_property'], elem['id_series'], elem['id_unit'], 1, 0, ''))
             else:
                 query = 'UPDATE RS_docs_table SET qtty=qtty+?, last_updated= ?  WHERE id = ?'
-                get_query_result(query, (1, str(datetime.datetime.now()), elem[3]))
+                get_query_result(query, (1, str(datetime.datetime.now()), elem['id']))
             return {'Result': 'Все ок', 'Error': None}
 
     def add(self, args):
@@ -357,7 +380,7 @@ class Rs_doc():
         res = get_query_result(query, args)
 
     def get_new_id(self):
-        query = 'Select max(id_doc) From(Select id_doc from RS_docs WHERE id_doc<10000)'
+        query = 'Select max(id_doc) From RS_docs'
         res = get_query_result(query)
         if len(res) == 0:
             return '1'
