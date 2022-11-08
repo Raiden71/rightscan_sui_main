@@ -131,7 +131,8 @@ def get_doc_query(arg=''):
     ifnull(RS_countragents.full_name,'') as RS_countragent,
     ifnull(RS_warehouses.name,'') as RS_warehouse,
     RS_docs.verified,
-    RS_docs.sent
+    RS_docs.sent,
+    RS_docs.add_mark_selection
     
      FROM RS_docs
      LEFT JOIN RS_countragents as RS_countragents
@@ -823,4 +824,23 @@ SELECT
     ON RS_series.id_elem = Temp_query.id_series
     LEFT JOIN RS_units
     ON RS_units.id_elem=Temp_query.id_unit
+    '''
+
+def get_mark_qtty_conformity():
+    return '''
+    SELECT ifnull(doc_table.qtty_plan,0) - ifnull(tmp.qtty_of_mark,0)  FROM 
+    
+    (SELECT qtty_plan
+    FROM RS_docs_table
+    WHERE 
+    id_doc = :idDoc 
+    AND id_good = :id_good
+    AND id_properties = :id_properties
+    AND id_series = :id_series
+    AND id_unit = :id_unit) As doc_table
+       LEFT JOIN (SELECT Count(id_barcode) As qtty_of_mark
+        FROM RS_docs_barcodes 
+        WHERE id_doc=:idDoc 
+        AND id_barcode LIke :barcode AND approved = :approved) As tmp
+        ON TRUE
     '''

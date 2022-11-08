@@ -105,10 +105,10 @@ def load_from_csv(path='', file=''):
             doc_num = ui_global.Rs_doc.get_new_id('')
             for row in my_reader:
                 if my_reader.line_num > 5:  # Заголовки таблицы
-                    if temp_doc_n != row[8]:
-                        # RS_docs (id_doc, doc_type, doc_n, doc_data, id_countragents, id_warehouse)
-                        rs_doc_data.append((doc_num, 'Инвойс', doc_num, current_date, '001', '001'))
-                        temp_doc_n = row[8]
+                    # if temp_doc_n != row[8]:
+                    #     # RS_docs (id_doc, doc_type, doc_n, doc_data, id_countragents, id_warehouse)
+                    #     rs_doc_data.append((doc_num, 'Инвойс', doc_num, current_date, '001', '001'))
+                    #     temp_doc_n = row[8]
                     # RS_docs_table(id_doc, id_good, id_properties, id_series, id_unit, qtty, qtty_plan, price, id_price)
                     if temp_good != row[0]:
                         rs_doc_table_data.append((doc_num, row[0], row[8], '', row[1]+row[0], int(row[7]), int(row[6]), '', ''))
@@ -126,6 +126,10 @@ def load_from_csv(path='', file=''):
                         #RS_marking_codes(id, mark_code, id_good, id_property, id_series, id_unit) VALUES(?, ?, ?, ?, ?, ?)
                         rs_marking_codes.append((row[5], row[5],row[0],row[8],'',row[1]+row[0]))
 
+                elif my_reader.line_num == 3:
+                    if row[0]:
+                        doc_num = row[0]
+                    rs_doc_data.append((doc_num, 'Инвойс', doc_num, current_date, '001', '001'))
                 elif my_reader.line_num == 5:
                     list_headers = row.copy()
 
@@ -134,6 +138,19 @@ def load_from_csv(path='', file=''):
         ui_global.bulk_query_replace(get_query_text('RS_docs_table'), rs_doc_table_data)
         ui_global.bulk_query_replace(get_query_text('RS_docs_barcodes'), rs_doc_barcode)
         ui_global.bulk_query_replace(get_query_text('RS_marking_codes'), rs_marking_codes)
+
+        #По документам, где есть запланированные марки, добавим признак
+        qtext = 'SELECT id_doc, COUNT(is_plan) as is_plan FROM RS_docs_barcodes WHERE is_plan = "1" '
+        res = ui_global.get_query_result(qtext,'',True)
+        qtext = 'UPDATE RS_docs SET add_mark_selection = ? WHERE id_doc = ?'
+        # ---
+        for el in res:
+            if el['is_plan'] > 0:
+                ui_global.get_query_result (qtext, (1,el['id_doc']))
+            else:
+                ui_global.get_query_result(qtext, (0, el['id_doc']))
+
+
 
     elif file[:14] == 'initial_dicts_':
         #Добавим тип товара для всех таблиц

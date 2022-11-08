@@ -1,7 +1,4 @@
-import os
-import csv
-
-import ui_barcodes
+from ru.travelfood.simple_ui import SimpleUtilites as suClass
 import ui_csv
 import ui_global
 import ui_form_data
@@ -31,7 +28,7 @@ def settings_on_start(hashMap, _files=None, _data=None):
         hashMap.put('delete_files', str(res[5]))
 
     if not hashMap.containsKey('ip_host'):
-        hashMap.put('ip_host', '192.168.0.45')
+        hashMap.put('ip_host', '192.168.88.99')
 
     return hashMap
 
@@ -134,7 +131,8 @@ def refill_docs_list(filter=''):
             'data': str(record[3]),
             'key': record[0],
             'warehouse': record[7],
-            'countragent': record[6]
+            'countragent': record[6],
+            'add_mark_selection':record[10]
         }
         doc_list['customcards']['cardsdata'].append(product_row)
 
@@ -171,6 +169,12 @@ def doc_details_on_start(hashMap, _files=None, _data=None):
     hashMap.put('use_properties', res[2])
     doc_detail_list = ui_form_data.get_doc_detail_cards(use_series, use_properties)
     doc_detail_list['customcards']['cardsdata'] = []
+
+    #Получаем теекущий документ
+    current_str = hashMap.get("selected_card_position")
+    jlist = json.loads(hashMap.get('docCards'))
+    current_elem = jlist['customcards']['cardsdata'][int(current_str)]
+    hashMap.put('add_mark_selection', str(current_elem['add_mark_selection'] if current_elem['add_mark_selection'] else '0'))
 
     query_text = ui_form_data.get_doc_details_query()
 
@@ -264,8 +268,8 @@ def doc_details_listener(hashMap, _files=None, _data=None):
     # current_card_list = hashMap.get("doc_goods")
     # jl = jlist['customcards']['cardsdata']
     # if not current_card_list == None:
-    #     jlist = json.loads(hashMap.get("doc_goods"))
-    #     current_elem = jlist['customcards']['cardsdata'][int(current_str) - 1]
+    #     jlist = json.loads(current_card_list)
+    #     current_elem = jlist['customcards']['cardsdata'][int(current_str)-1]
     # else:
     #     current_elem = None
     listener = hashMap.get('listener')
@@ -322,15 +326,27 @@ def doc_details_listener(hashMap, _files=None, _data=None):
         doc = ui_global.Rs_doc
         doc.id_doc = hashMap.get('id_doc')
         barcode = hashMap.get('barcode_camera')
-        res = doc.find_barcode_on_doc(doc, barcode)
+        #Признак, надо ли добавлять отсутствующие в докуменете баркоды
+        res = ui_global.get_query_result('SELECT add_mark_selection  from RS_docs WHERE id_doc = ?',(doc.id_doc,))
+        if res[0][0] == 1:
+            add_if_not_found = False
+        else:
+            add_if_not_found = True
+
+        res = doc.find_barcode_on_doc(doc, barcode, add_if_not_found)
         if res == None:
-            hashMap.put('toast',
-                        'Штрих код не зарегистрирован в базе данных. Проверьте товар или выполните обмен данными')
+            hashMap.put('scanned_barcode', barcode)
+            suClass.urovo_set_lock_trigger(True)
+            hashMap.put('ShowScreen', 'Ошибка сканера')
+            # hashMap.put('toast',
+            #             'Штрих код не зарегистрирован в базе данных. Проверьте товар или выполните обмен данными')
         elif res['Error']:
             if res['Error'] == 'AlreadyScanned':
 
                 hashMap.put('barcode', json.dumps({'barcode': res['Barcode'], 'doc_info': res['doc_info']}))
                 hashMap.put('ShowScreen', 'Удаление штрихкода')
+            elif res['Error']=='QuantityPlanReached':
+                hashMap.put('toast', res['Descr'])
             else:
                 hashMap.put('toast', res['Descr'])
         else:
@@ -517,7 +533,7 @@ def new_doc_on_select(hashMap, _files=None, _data=None):
 
             id = ui_global.Rs_doc.get_new_id(1)
             #id = (f'{id:04}')
-            id = "{0:0>4}".format(id)
+            #id = "{0:0>4}".format(id)
         else:
             id = fld_number
 
@@ -566,5 +582,14 @@ def doc_barcodes_on_start(hashMap, _files=None, _data=None):
 def doc_barcodes_listener(hashMap, _files=None, _data=None):
 
     if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        hashMap.put("ShowScreen", "Документ товары")
+    return hashMap
+
+def barcode_error_screen_listener(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        suClass.urovo_set_lock_trigger(False)
+        hashMap.put("ShowScreen", "Документ товары")
+    elif hashMap.get('listener') == 'btn_continue_scan':
+        suClass.urovo_set_lock_trigger(False)
         hashMap.put("ShowScreen", "Документ товары")
     return hashMap

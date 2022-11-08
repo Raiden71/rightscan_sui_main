@@ -44,6 +44,8 @@ def datamatrix(barcode: str) -> dict:
         dict: Returns dictionary object with SCHEME, PPN, GTIN, EXPIRY, BATCH, SERIAL & NHRN as keys for valid requests
         or relevant error strings.
     """
+
+
     if barcode[:3] == "]d2":  # Most barcode scanners prepend ']d2' identifier for the GS1 datamatrix. This section removes the identifier.
         barcode = barcode[3:]
         result = gs1_gtin(barcode)
