@@ -3,3 +3,11 @@ venv
 .idea
 *.vscode
 __pycache__
+ru
+test_files
+local_data
+java.py
+*.db
+.gitignore
+rs_settings.conf
+sui_main.ui

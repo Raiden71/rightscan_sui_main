@@ -15,6 +15,8 @@ import importlib
 from java import jclass
 import http_exchange
 from requests.auth import HTTPBasicAuth
+import ui_utils
+from ui_utils import HashMap
 
 noClass = jclass("ru.travelfood.simple_ui.NoSQL")
 rs_settings = noClass("rs_settings")
@@ -23,7 +25,8 @@ importlib.reload(ui_csv)
 importlib.reload(ui_global)
 importlib.reload(ui_form_data)
 importlib.reload(database_init_queryes)
-
+importlib.reload(http_exchange)
+importlib.reload(ui_utils)
 
 # -----
 # 0100608940553886215,iPGSQpBt!&B
@@ -54,6 +57,7 @@ def settings_on_start(hashMap, _files=None, _data=None):
     if not hashMap.containsKey('ip_host'):
         hashMap.put('ip_host', '192.168.1.77')
 
+
     return hashMap
 
 
@@ -79,6 +83,7 @@ def settings_on_click(hashMap, _files=None, _data=None):
     listener = hashMap.get('listener')
     if listener == 'btn_copy_base':
         ip_host = hashMap.get('ip_host')
+        ip_host = '10.24.24.20'
         if os.path.isfile('//data/data/ru.travelfood.simple_ui/databases/SimpleKeep'):
             with open('//data/data/ru.travelfood.simple_ui/databases/SimpleKeep', 'rb') as f:  # rightscan
                 r = requests.post('http://' + ip_host + ':2444/post', files={'Rightscan': f})  # rightscan
@@ -4448,4 +4453,49 @@ def price_on_click(hashMap, _files=None, _data=None):
         hashMap.put("ShowScreen", "Товары список")
     return hashMap
 
-#Hello
+
+@HashMap(debug=True)
+def doc_details_on_scan_barcode(hash_map: HashMap):
+    doc = ui_global.Rs_doc
+    doc.id_doc = hash_map['id_doc']
+
+    answer = http_exchange.post_goods_to_server(doc.id_doc, get_http_settings(hash_map))
+    if answer.get('Error') is not None:
+        hash_map.debug(answer.get('Error'))
+
+
+@HashMap()
+def doc_details_on_start_refresh_screen(hash_map: HashMap):
+    pass
+    # time.sleep(3)
+    # doc_goods = hash_map.get('doc_goods', True)
+    # hash_map.toast('start')
+    #
+    # if doc_goods:
+    #     cards_data = doc_goods['customcards']['cardsdata']
+    # #
+    #     try:
+    #         update_data = get_update_goods_data_screen(hash_map['id_doc'], cards_data)
+    #
+    #         if isinstance(update_data, dict) and update_data.get('Error'):
+    #             hash_map.toast('error')
+    #             hash_map.error_log(update_data.get('Error'))
+    #         else:
+    #             update_data = {row['key']: row for row in update_data}
+    #             cards_data_dict = {row['key']: row for row in cards_data}
+    #             for row in cards_data:
+    #                 if update_data.get(row['key']):
+    #                     row['qtty'] = update_data[row['key']]
+    #
+    #             add_rows = [w for k, w in update_data.items() if k not in cards_data_dict]
+    #             cards_data = cards_data + add_rows
+    #             doc_goods['customcards']['cardsdata'] = cards_data
+    #             hash_map.put(doc_goods, True)
+    #             hash_map.refresh_screen()
+    #
+        # except Exception as e:
+        #     hash_map.toast(e.args[0])
+        #     hash_map.send_to_telegram(e.args[0])
+    #
+    # hash_map.run_event_async('doc_details_on_start_refresh_screen')
+    # hash_map.toast('finish')

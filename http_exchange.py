@@ -248,7 +248,68 @@ def post_changes_to_server(doc_list , htpparams):
     return answer
 
 
+def get_last_edited_data(doc_id):
+    query_docs = f'SELECT * FROM RS_docs WHERE id_doc = ?'
 
+    query_goods = '''
+    SELECT T2.* 
+    FROM (
+        SELECT 
+            id_doc, 
+            max(last_updated) as last_updated 
+        FROM RS_docs_table 
+        WHERE id_doc = ? 
+        GROUP BY id_doc) as T1 
+    JOIN RS_docs_table as T2 ON T1.id_doc = T2.id_doc AND T1.last_updated = T2.last_updated
+    '''
+
+    try:
+        res_docs = ui_global.get_query_result(query_docs, (doc_id, ), True)
+        res_goods = ui_global.get_query_result(query_goods, (doc_id, ), True)
+    except Exception as e:
+        return {'Error': e.args[0]}
+
+    for item in res_docs:
+        filtered_list = [d for d in res_goods if d['id_doc'] == item['id_doc']]
+        item['RS_docs_table'] = filtered_list
+        item['RS_docs_barcodes'] = []
+        item['RS_barc_flow'] = []
+
+    return json.dumps(res_docs)
+
+
+def post_goods_to_server(doc_id, http_params):
+    url = http_params['url']
+    username = http_params['user']
+    password = http_params['pass']
+    android_id = http_params['android_id']
+
+    res = get_last_edited_data(doc_id)
+    if isinstance(res, dict) and res.get('Error'):
+        answer = {'empty': True, 'Error': res.get('Error')}
+        return answer
+
+    answer = {'empty': True}
+
+    if res is not None:
+        try:
+            r = requests.post(f'{url}/simple_accounting/documents?android_id={android_id}',
+                              auth=HTTPBasicAuth(username, password, ),
+                              headers={'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'},
+                              params={'user_name': http_params['user_name'], 'device_model': http_params['device_model']},
+                              data=res)
+
+            answer['status_code'] = r.status_code
+            if r.status_code == 200:
+                answer['empty'] = False
+            else:
+                answer['empty'] = True
+                answer['Error'] = r.text
+        except Exception as e:
+            answer['empty'] = True
+            answer['Error'] = e.args[0]
+
+    return answer
 
 #
 # adr_string=input('Введите адрес: ')
