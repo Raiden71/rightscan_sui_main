@@ -4448,4 +4448,4 @@ def price_on_click(hashMap, _files=None, _data=None):
         hashMap.put("ShowScreen", "Товары список")
     return hashMap
 
-#Hello
+#Hello 11
