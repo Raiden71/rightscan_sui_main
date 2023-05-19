@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-#
+#123
 
 def get_gtin_serial_from_datamatrix(barcode: str):
     #010060894056630521YjWC/R9P5zRf3  -- образец
