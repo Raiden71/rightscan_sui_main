@@ -10,8 +10,8 @@ rs_settings = noClass("rs_settings")
 
 # Класс-декоратор для удобной работы с hashMap. Также можно добавить дополнительную логику.
 class HashMap:
-    def __init__(self, debug: bool = False):
-        self.hash_map = None
+    def __init__(self, hash_map=None, debug: bool = False):
+        self.hash_map = hash_map
         self.debug_mode = debug
 
     def __call__(self, func: Callable[..., None]):
@@ -61,10 +61,10 @@ class HashMap:
         rs_settings.put('error_log', err_data, True)
 
     def __getitem__(self, item):
-        return self.hash_map.get(item)
+        return self.hash_map.get(item, False)
 
     def __setitem__(self, key, value):
-        self.put(key, value)
+        self.put(key, value, False)
 
     def get(self, item, from_json=False):
         if from_json:
