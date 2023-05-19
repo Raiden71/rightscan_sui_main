@@ -1,6 +1,7 @@
 import requests
 from flask import Flask
 from flask import request
+import os
 
 app = Flask(__name__)
 
@@ -18,9 +19,10 @@ def get_remote_table():
 
 @app.route('/post', methods=['POST'])
 def post():
-    file = request.files['SimpleWMS']
+    path = os.getcwd()
+    file = request.files['Rightscan'] #rightscan
     if file:
-        file.save('SimpleWMS.db')
+        file.save(path + '\\rightscan5.db')
         print('file uploaded')
     return '200'
 

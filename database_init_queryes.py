@@ -1,147 +1,375 @@
-class RS_barcodes(db.Entity):
-    barcode = Required(str)  # , lenght=200) Также GTIN
-    id_good = Required(str)  # , lenght=36)
-    id_property = Optional(str)  # , lenght=36)
-    id_series = Optional(str)
-    id_unit = Optional(str)  # , lenght=36)
+#import ui_global
+def database_shema():
+    Rs = []
 
 
-#
-class RS_marking_codes(db.Entity):
-    id = PrimaryKey(str)
-    mark_code = Required(str)  # КОд маркировки формата 01+GTIN+21+SERIAL
-    id_good = Required(str)  # , lenght=36)
-    id_property = Optional(str)  # , lenght=36)
-    id_series = Optional(str)
-    id_unit = Optional(str)  # , lenght=36)
+    #Константы и хранимые настройки RS_constants
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_constants (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        use_series     TEXT    DEFAULT 0
+                               NOT NULL,
+        use_properties TEXT    DEFAULT 0
+                               NOT NULL,
+        use_mark       TEXT    DEFAULT 0
+                               NOT NULL,
+        add_if_not_in_plan     TEXT    DEFAULT 0
+                               NOT NULL,
+        path           TEXT    NOT NULL
+                            DEFAULT "//storage/emulated/0/Android/data/ru.travelfood.simple_ui/",
+        delete_files   TEXT    DEFAULT 0
+                               NOT NULL,
+        reserved       TEXT    NOT NULL,
+        max_id_doc         INTEGER NOT NULL
+                               DEFAULT (1),
+        allow_overscan TEXT    DEFAULT 0
+                               NOT NULL,
+        release        TEXT
+    )
+    ''')
 
 
-# Номенклатура
-class RS_goods(db.Entity):
-    id_elem = PrimaryKey(str)  # , lenght=36)
-    code = Required(str)
-    name = Optional(str)
-    art = Optional(str)
-    unit = Optional(str)
-    type_good = Optional(str)  # Вид номенклатуры
-    description = Optional(str)
+    # Классификатор единиц измерения RS_classifier_units
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_classifier_units (
+        id TEXT NOT NULL
+                     PRIMARY KEY,
+        code    TEXT NOT NULL,
+        name    TEXT NOT NULL
+    )
+    ''')
+
+    # Виды номенклатуры RS_types_goods
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_types_goods (
+    id       TEXT NOT NULL
+                  PRIMARY KEY,
+    name     TEXT NOT NULL,
+    use_mark INT  DEFAULT (0) 
+    )
+    ''')
+
+    # Номенклатура RS_goods
+    Rs.append('''
+        CREATE TABLE IF NOT EXISTS RS_goods (
+            id     TEXT NOT NULL
+                             PRIMARY KEY,
+            code        TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            art         TEXT,
+            unit        TEXT  REFERENCES RS_classifier_units (id),
+            type_good   TEXT NOT NULL
+                             REFERENCES RS_types_goods (id) ON DELETE NO ACTION
+                                                                 MATCH [FULL],
+            description TEXT
+        )
+        ''')
 
 
-# Характеристики номенклатуры
-class RS_properties(db.Entity):
-    id_elem = Required(str)  # , lenght=36)
-    id_owner = Required(str)  # , lenght=36)  # id Номенклатуры
-    name = Optional(str)
+    # Характеристики номенклатуры RS_properties
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_properties (
+    id       TEXT NOT NULL
+                  PRIMARY KEY ON CONFLICT REPLACE,
+    id_owner TEXT NOT NULL
+                  REFERENCES RS_goods (id) ON DELETE NO ACTION
+                                           ON UPDATE NO ACTION,
+    name     TEXT NOT NULL
+    )
+    ''')
 
 
-# Упаковки Единицы измерения
-class RS_units(db.Entity):
-    id_elem = PrimaryKey(str)
-    id_owner = Required(str)  # , lenght=36)  # id Номенклатуры
-    code = Required(str)
-    name = Optional(str)
-    nominator = Required(int)  # Числитель
-    denominator = Required(int)  # Знаменатель
-    int_reduction = Optional(str)  # Международное сокращение
+    # Упаковки Единицы измерения RS_units
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_units (
+        id       TEXT    NOT NULL
+                              PRIMARY KEY,
+        id_owner      TEXT    NOT NULL
+                              REFERENCES RS_goods (id),
+        code          TEXT    NOT NULL,
+        name          TEXT    NOT NULL,
+        nominator     INTEGER NOT NULL,
+        denominator   INTEGER NOT NULL,
+        int_reduction TEXT    NOT NULL
+    )
+    ''')
 
 
-# Виды номенклатуры
-class RS_types_goods(db.Entity):
-    id_elem = PrimaryKey(str)  # , lenght=36)
-    name = Optional(str)
+
+    # Серии номенклатуры RS_series
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_series (
+        id         TEXT NOT NULL
+                             PRIMARY KEY,
+        name            TEXT NOT NULL,
+        best_before     TEXT,
+        type_goods      TEXT NOT NULL,
+        number          TEXT NOT NULL,
+        production_date TEXT NOT NULL
+    )
+    ''')
 
 
-# Серии номенклатуры
-class RS_series(db.Entity):
-    id_elem = PrimaryKey(str)
-    name = Optional(str)
-    best_before = Optional(str)  # Годен до
-    type_goods = Optional(str)  # Вид номенклатуры (id RS_types_goods )
-    number = Optional(str)
-    production_date = Optional(str)  # Дата производства
+    # Штрихкоды RS_barcodes
+    Rs.append( '''
+    CREATE TABLE IF NOT EXISTS RS_barcodes (
+    barcode     TEXT NOT NULL
+                     PRIMARY KEY,
+    id_good     TEXT NOT NULL,
+    id_property TEXT,
+    id_series   TEXT,
+    id_unit     TEXT
+)
+
+    ''')
+
+    #Коды маркировки RS_marking_codes
+    Rs.append( '''
+    CREATE TABLE IF NOT EXISTS RS_marking_codes (
+        id          TEXT NOT NULL
+                         PRIMARY KEY,
+        mark_code   TEXT NOT NULL,
+        id_good     TEXT NOT NULL
+                         REFERENCES RS_goods (id),
+        id_property TEXT NOT NULL
+                         REFERENCES RS_properties (id),
+        id_series   TEXT NOT NULL
+                         REFERENCES RS_series (id),
+        id_unit     TEXT NOT NULL
+                         REFERENCES RS_units (id) 
+    )
+    ''')
 
 
-# Контрагенты
-class RS_countragents(db.Entity):
-    id_elem = PrimaryKey(str)
-    name = Optional(str)
-    full_name = Optional(str)
-    inn = Optional(str)
-    kpp = Optional(str)
+
+    # Контрагенты RS_countragents
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_countragents (
+        id   TEXT NOT NULL
+                       PRIMARY KEY,
+        name      TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        inn       TEXT NOT NULL,
+        kpp       TEXT NOT NULL
+    )
+    ''')
+
+    # Склады RS_warehouses
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_warehouses (
+        id TEXT NOT NULL
+                     PRIMARY KEY,
+        name    TEXT NOT NULL
+    )
+    ''')
+
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_cells (
+    id   TEXT PRIMARY KEY
+              NOT NULL,
+    name TEXT NOT NULL,
+    barcode TEXT
+    )''')
+
+    # Виды цен номенклатуры RS_price_types
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_price_types (
+        id   TEXT NOT NULL
+                  PRIMARY KEY,
+        name TEXT NOT NULL
+    )
+    ''')
+
+    # Цены номенклатуры RS_prices
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_prices (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_price_types TEXT    NOT NULL
+                               REFERENCES RS_price_types (id),
+        id_goods       TEXT    NOT NULL
+                               REFERENCES RS_goods (id),
+        id_properties  TEXT    NOT NULL
+                               REFERENCES RS_properties (id),
+        price          REAL,
+        id_unit        TEXT    NOT NULL
+                               REFERENCES RS_units (id) 
+    )
+    ''')
+
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_doc_types (
+    doc_type TEXT PRIMARY KEY ON CONFLICT REPLACE
+                NOT NULL,
+    is_adr_storage INT  DEFAULT (0) 
+    )
+    ''')
+
+    # Все документы списком RS_docs
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_docs (
+        id_doc             TEXT     NOT NULL
+                                    PRIMARY KEY,
+        doc_type           TEXT     NOT NULL,
+        doc_n              TEXT     NOT NULL,
+        doc_date           TEXT     NOT NULL,
+        id_countragents    TEXT     NOT NULL
+                                    REFERENCES RS_countragents (id),
+        id_warehouse       TEXT     NOT NULL
+                                    REFERENCES RS_warehouses (id),
+        verified           INTEGER,
+        sent               INTEGER,
+        add_mark_selection INTEGER,
+        created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        control            TEXT DEFAULT 0
+    )
+    ''')
 
 
-# Склады
-class RS_warehouses(db.Entity):
-    id_elem = PrimaryKey(str)
-    name = Optional(str)
+    # Табличная часть документов RS_docs_table
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_docs_table (
+        id            INTEGER  PRIMARY KEY AUTOINCREMENT,
+        id_doc        TEXT     NOT NULL
+                               REFERENCES RS_docs (id_doc) ON DELETE CASCADE
+                                                           ON UPDATE SET DEFAULT,
+        id_good       TEXT     NOT NULL
+                               REFERENCES RS_goods (id),
+        id_properties TEXT     REFERENCES RS_properties (id),
+        id_series     TEXT     REFERENCES RS_series (id),
+        id_unit       TEXT     NOT NULL
+                               REFERENCES RS_units (id),
+        qtty          REAL,
+        qtty_plan     REAL,
+        price         REAL,
+        id_price      TEXT     REFERENCES RS_price_types (id),
+        sent          INTEGER,
+        last_updated  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        is_plan       TEXT DEFAULT "True",
+        id_cell          TEXT     REFERENCES RS_cells (id) 
+    )
+    ''')
 
 
-# Классификатор единиц измерения
-class RS_classifier_units(db.Entity):
-    id_elem = PrimaryKey(str)  # , lenght=36)
-    code = Required(str)
-    name = Required(str)
+    # Коды маркировки в документе RS_docs_barcodes
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_docs_barcodes (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_doc               TEXT    NOT NULL
+                                 REFERENCES RS_docs (id_doc),
+    id_good     TEXT NOT NULL
+         REFERENCES RS_goods (id),
+    id_property TEXT NOT NULL
+                     REFERENCES RS_properties (id),
+    id_series   TEXT NOT NULL
+                     REFERENCES RS_series (id),
+    id_unit     TEXT NOT NULL
+                     REFERENCES RS_units (id) ,
+    --# id_barcode           TEXT    NOT NULL
+    --#                              REFERENCES RS_marking_codes (id),
+    barcode_from_scanner TEXT,
+    is_plan              TEXT    DEFAULT 0
+                                 NOT NULL,
+    approved             TEXT    DEFAULT 0,
+    GTIN                 TEXT,
+    Series               TEXT
+    )
+    ''')
+
+    #Поток произвольных штрихкодов
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_barc_flow (
+    id_doc  TEXT REFERENCES RS_docs (id_doc),
+    barcode TEXT
+    )
+    ''')
+
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_adr_docs (
+    id_doc             TEXT     NOT NULL
+                                PRIMARY KEY,
+    doc_type           TEXT     NOT NULL,
+    doc_n              TEXT     NOT NULL,
+    doc_date           TEXT     NOT NULL,
+    id_warehouse       TEXT     NOT NULL
+                                REFERENCES RS_warehouses (id),
+    verified           INTEGER,
+    sent               INTEGER,
+    add_mark_selection INTEGER,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    control            TEXT     DEFAULT 0
+    )
+    ''')
+
+    Rs.append('''
+    CREATE TABLE IF NOT EXISTS RS_adr_docs_table (
+    id            INTEGER  PRIMARY KEY AUTOINCREMENT,
+    id_doc        TEXT     NOT NULL
+                           REFERENCES RS_adr_docs (id_doc) ON DELETE CASCADE
+                                                           ON UPDATE SET DEFAULT,
+    id_good       TEXT     NOT NULL
+                           REFERENCES RS_goods (id),
+    id_properties TEXT     REFERENCES RS_properties (id),
+    id_series     TEXT     REFERENCES RS_series (id),
+    id_unit       TEXT     REFERENCES RS_units (id),
+    qtty          REAL,
+    qtty_plan     REAL,
+    sent          INTEGER,
+    last_updated  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_plan       TEXT     DEFAULT True,
+    id_cell       TEXT     REFERENCES RS_cells (id), 
+    table_type    TEXT     NOT NULL
+                           DEFAULT 'out'
+    )
+    ''')
+
+    Rs.append('''
+        CREATE TABLE IF NOT EXISTS Error_log (
+        log       TEXT     NOT NULL
+                           DEFAULT (''),
+        timestamp DATETIME DEFAULT (CURRENT_TIMESTAMP)) 
+    ''')
+
+    Rs.append('''
+    CREATE INDEX  IF NOT EXISTS cell_name ON RS_cells (
+    name
+    )
+    ''')
+
+    Rs.append('''
+    CREATE INDEX  IF NOT EXISTS cell_name ON RS_cells (
+    barcode
+    )
+    ''')
 
 
-# Виды цен номенклатуры
-class RS_price_types(db.Entity):
-    id = PrimaryKey(str)
-    name = Required(str)
+# RS_constants + RS_classifier_units + RS_types_goods
+#     Rs = + RS_goods + RS_properties\
+#          + RS_series + RS_units + RS_barcodes + RS_marking_codes + RS_docs + RS_docs_barcodes\
+#          + RS_docs_table + RS_price_types + RS_prices + RS_countragents + RS_warehouses
 
+    return Rs
+#print(database_shema())
+    #
+    # Rs.append(RS_constants)
+    # Rs.append(RS_classifier_units)
+    # Rs.append(RS_types_goods)
+    #
+    # Rs.append(RS_goods)
+    # Rs.append(RS_properties)
+    # Rs.append(RS_series)
+    # Rs.append(RS_units)
+    #
+    # Rs.append(RS_barcodes)
+    # Rs.append(RS_marking_codes)
+    #
+    # Rs.append(RS_docs)
+    # Rs.append(RS_docs_barcodes)
+    # Rs.append(RS_docs_table)
+    #
+    # Rs.append(RS_price_types)
+    # Rs.append(RS_prices)
+    #
+    # Rs.append(RS_countragents)
+    # Rs.append(RS_warehouses)
+    #ui_global.get_query_result(Rs)
 
-# Цены номенклатуры
-class RS_prices(db.Entity):
-    id_price_types = Required(str)
-    id_goods = Required(str)
-    id_properties = Optional(str)
-    price = Optional(float)
-    id_unit = Optional(str)
-
-
-# Все документы списком
-class RS_docs(db.Entity):
-    # id_doc, doc_type, doc_n, doc_data, good_id, good_mame, ed_izm, qtty, qtty_fact
-    id_doc = PrimaryKey(str)
-    doc_type = Required(str)
-    doc_n = Required(str)
-    doc_data = Required(str)
-    id_countragents = Optional(str)
-    id_warehouse = Optional(str)
-    verified = Optional(int, sql_default=0)
-    sent = Optional(int, sql_default=0)
-    add_mark_selection = Optional(int,sql_default=0)
-    created_at = Optional(datetime.datetime, sql_default='CURRENT_TIMESTAMP')
-
-
-# Табличная часть документов
-class RS_docs_table(db.Entity):
-    id_doc = Required(str)
-    id_good = Optional(str)
-    id_properties = Optional(str)
-    id_series = Optional(str)
-    id_unit = Optional(str)
-    qtty = Optional(float, sql_default=0)
-    qtty_plan = Optional(float, sql_default=0)
-    price = Optional(float, sql_default=0)
-    id_price = Optional(str)
-    sent = Optional(int, sql_default=0)
-    last_updated = Optional(datetime.datetime, sql_default='CURRENT_TIMESTAMP')
-
-
-class RS_docs_barcodes(db.Entity):
-    id_doc = Required(str)
-    #    barcode = Required(str)
-    id_barcode = Required(str)
-    barcode_from_scanner = Optional(str, nullable=True)
-    #    id_good = Optional(str,nullable=True)
-    is_plan = Required(str, sql_default='0')
-    approved = Optional(str, sql_default='0', nullable=True)
-
-
-class RS_constants(db.Entity):
-    use_series = Required(str, sql_default='0')
-    use_properties = Required(str, sql_default='0')
-    use_mark = Required(str, sql_default='0')
-    path = Required(str)  # Путь к папке обмена
-    delete_files = Required(str, sql_default='0')  # Признак, удалять файлы обмена после обмена из папки обмена
-    reserved = Optional(str)

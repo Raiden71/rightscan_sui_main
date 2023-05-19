@@ -1,36 +1,34 @@
+# Модуль парсит штрихкод или датаматрикс на составляющие 11
+
 import re
 from datetime import datetime
-
-
-def get_gtin_serial_from_datamatrix(barcode: str):
-    #010060894056630521YjWC/R9P5zRf3  -- образец
-    if barcode:
-        if len(barcode)==31:
-            res = {}
-            res['GTIN'] = barcode[2:16]
-            res['SERIAL'] = barcode[18:]
-    else:
-        res = None
-
-    return res
-
 
 
 def parse_barcode(barcode):
     if barcode:
         # Простой EAN13
-        if not re.fullmatch(r'\d{13}', barcode)== None and  re.fullmatch(r'\d{13}', barcode).string == barcode:
+        if not re.fullmatch(r'\d{13}', barcode) is None and re.fullmatch(r'\d{13}', barcode).string == barcode:
 
-            res = {'SCHEME': 'EAN13', 'BARCODE': barcode}
+            res = {'SCHEME': 'EAN13', 'BARCODE': barcode, 'GTIN': barcode, 'SERIAL': ''}
 
-        elif chr(29) in barcode: # Datamatrix
+        elif len(barcode) == 29:  # Это датаматрикс Табак, Пачка
+            # res = parse_tobacco(barcode)
+            res = {'SCHEME': 'GS1', 'GTIN': barcode[0:14], 'SERIAL': barcode[14:21], 'MRC': barcode[21:25],
+                   'CHECK': barcode[25:29]}
+
+        elif chr(29) in barcode:  # Datamatrix
+
             res = datamatrix(barcode)
-
-        else: #Неизвестный тип кода
-            res = {'SCHEME': 'UNKNOWN', 'BARCODE': barcode}
-
+            res['FullCode'] = barcode
+        elif '<GS>' in barcode:
+            res = datamatrix(barcode)
+            res['FullCode'] = barcode
+        else:  # Неизвестный тип кода
+            res = {'SCHEME': 'UNKNOWN', 'BARCODE': barcode, 'GTIN': barcode, 'SERIAL': ''}
 
         return res
+    else:
+        return {'SCHEME': 'UNKNOWN', 'BARCODE': barcode, 'GTIN': '', 'SERIAL': '', 'ERROR': 'Empty barcode'}
 
 
 def datamatrix(barcode: str) -> dict:
@@ -45,15 +43,15 @@ def datamatrix(barcode: str) -> dict:
         or relevant error strings.
     """
 
-
-    if barcode[:3] == "]d2":  # Most barcode scanners prepend ']d2' identifier for the GS1 datamatrix. This section removes the identifier.
+    if barcode[
+       :3] == "]d2":  # Most barcode scanners prepend ']d2' identifier for the GS1 datamatrix. This section removes the identifier.
         barcode = barcode[3:]
         result = gs1_gtin(barcode)
 
     elif barcode[:2] in ['01', '21', '17', '10', '71']:
         result = gs1_gtin(barcode)
 
-    elif barcode[0]==chr(29): #Short GS1 barcode
+    elif barcode[0] == chr(29):  # Short GS1 barcode
         result = gs1_gtin(barcode)
 
     elif barcode[:6] == ('[)>' + chr(30) + '06') or ('[)>' + chr(30) + '05'):  # MACRO 06 or MACRO 05
@@ -85,7 +83,7 @@ def gtin_check(gtin: str):
     return check_sum_digit == int(gtin[-1])
 
 
-result = {'SCHEME': 'GS1'}
+sresult = {'SCHEME': 'GS1'}
 
 
 def gs1_gtin(barcode: str) -> dict:
@@ -93,20 +91,20 @@ def gs1_gtin(barcode: str) -> dict:
 
         while barcode:
             if barcode[:2] == '01':
-                result['GTIN'] = barcode[2:16]
+                sresult['GTIN'] = barcode[2:16]
                 if len(barcode) > 16:
                     barcode = barcode[16:]
                 else:
                     barcode = None
 
-            elif barcode[:3] == chr(29)+'01':
-                result['GTIN'] = barcode[3:17]
+            elif barcode[:3] == chr(29) + '01':
+                sresult['GTIN'] = barcode[3:17]
                 if len(barcode) > 17:
                     barcode = barcode[17:]
                 else:
                     barcode = None
             elif barcode[:2] == '17':
-                result['EXPIRY'] = barcode[2:8]
+                sresult['EXPIRY'] = barcode[2:8]
                 if len(barcode) > 8:
                     barcode = barcode[8:]
                 else:
@@ -115,44 +113,51 @@ def gs1_gtin(barcode: str) -> dict:
             elif barcode[:2] == '10':
                 if chr(29) in barcode:
                     index = barcode.index(chr(29))
-                    result['BATCH'] = barcode[2:index]
+                    sresult['BATCH'] = barcode[2:index]
                     barcode = barcode[index + 1:]
                 else:
-                    result['BATCH'] = barcode[2:]
+                    sresult['BATCH'] = barcode[2:]
                     barcode = None
 
             elif barcode[:2] == '21':
                 if chr(29) in barcode:
                     index = barcode.index(chr(29))
-                    result['SERIAL'] = barcode[2:index]
+                    sresult['SERIAL'] = barcode[2:index]
                     barcode = barcode[index + 1:]
                 else:
-                    result['SERIAL'] = barcode[2:]
+                    sresult['SERIAL'] = barcode[2:]
                     barcode = None
 
             elif barcode[:2] == '91':
                 if chr(29) in barcode:
                     index = barcode.index(chr(29))
-                    result['NHRN'] = barcode[2:index]
+                    sresult['NHRN'] = barcode[2:index]
                     barcode = barcode[index + 1:]
                 else:
-                    result['NHRN'] = barcode[2:6]
+                    sresult['NHRN'] = barcode[2:6]
                     barcode = None
 
-            elif barcode[:2] == '93': # Молочка, вода
-                pass
+            elif barcode[:2] == '93':  # Молочка, вода
+                sresult['CHECK'] = barcode[2:6]
+                barcode = barcode[7:]
 
-            elif barcode[:2] == '92': #Далее следует код проверки, 44 символа
-                #if len(barcode[2:])==44:
-                result['CHECK']= barcode[2:]
-                barcode=None
+            elif barcode[:2] == '92':  # Далее следует код проверки, 44 символа
+                # if len(barcode[2:])==44:
+                sresult['CHECK'] = barcode[2:]
+                barcode = None
+            elif barcode[:4] == '8005':  # Табак, Блок
+                sresult['NHRN'] = barcode[5:11]
+                barcode = barcode[11:]
+            elif barcode[:4] == '3103':  # Молочка с Весом
 
+                sresult['WEIGHT'] = barcode[4:]
+                barcode = None
 
             else:
-                return {'ERROR': 'INVALID BARCODE', 'BARCODE': result}
+                return {'ERROR': 'INVALID BARCODE', 'BARCODE': sresult}
     else:
-        result['ERROR']= 'No GS Separator'
-        return result
+        sresult['ERROR'] = 'No GS Separator'
+        return sresult
 
     # if ('GTIN' , 'BATCH' , 'EXPIRY' , 'SERIAL') in result.keys():
     #     if gtin_check(result['GTIN']) == False and expiry_date_check(result['EXPIRY']) == False:
@@ -165,16 +170,17 @@ def gs1_gtin(barcode: str) -> dict:
     #         return result
     # else:
     #     return {'ERROR': 'INCOMPLETE DATA', 'BARCODE': result}
-    return result
+    return sresult
+
 
 def expiry_date_check(e: str):
     my_year = e[:2]
     my_month = e[2:4]
     my_date = e[4:]
 
-    if (int(my_month) not in range(1, 13)):
+    if int(my_month) not in range(1, 13):
         return False
-    elif (int(my_date) not in range(32)):
+    elif int(my_date) not in range(32):
         return False
 
     if my_date == '00':
@@ -206,18 +212,18 @@ def expiry_date_check(e: str):
 
 
 def ifa_ppn(barcode: str) -> dict:
-    result = {'SCHEME': 'IFA'}
+    sresult = {'SCHEME': 'IFA'}
     while barcode:
 
         if barcode[:2] == '9N':
-            result['PPN'] = barcode[2:14]
+            sresult['PPN'] = barcode[2:14]
             if len(barcode) > 14:
                 barcode = barcode[15:]
             else:
                 barcode = None
 
         elif barcode[:1] == 'D':
-            result['EXPIRY'] = barcode[1:7]
+            sresult['EXPIRY'] = barcode[1:7]
             if len(barcode) > 7:
                 barcode = barcode[8:]
             else:
@@ -226,48 +232,48 @@ def ifa_ppn(barcode: str) -> dict:
         elif barcode[:2] == '1T':
             if chr(29) in barcode:
                 index = barcode.index(chr(29))
-                result['BATCH'] = barcode[2:index]
+                sresult['BATCH'] = barcode[2:index]
                 barcode = barcode[index + 1:]
             else:
                 index = barcode.index(chr(30))
-                result['BATCH'] = barcode[2:index]
+                sresult['BATCH'] = barcode[2:index]
                 barcode = None
 
         elif barcode[:1] == 'S':
             if chr(29) in barcode:
                 index = barcode.index(chr(29))
-                result['SERIAL'] = barcode[1:index]
+                sresult['SERIAL'] = barcode[1:index]
                 barcode = barcode[index + 1:]
             else:
                 index = barcode.index(chr(30))
-                result['SERIAL'] = barcode[1:index]
+                sresult['SERIAL'] = barcode[1:index]
                 barcode = None
 
         elif barcode[:2] == '8P':
-            result['GTIN'] = barcode[2:16]
+            sresult['GTIN'] = barcode[2:16]
             if len(barcode) > 16:
                 barcode = barcode[17:]
             else:
                 barcode = None
 
         else:
-            return {'ERROR': 'INVALID BARCODE', 'BARCODE': result}
+            return {'ERROR': 'INVALID BARCODE', 'BARCODE': sresult}
 
-    if 'PPN' and 'BATCH' and 'EXPIRY' and 'SERIAL' in result.keys():
-        if ppn_check(result['PPN']) == False and expiry_date_check(result['EXPIRY']) == False:
-            return {'ERROR': 'INVALID PPN & EXPIRY DATE', 'BARCODE': result}
-        elif expiry_date_check(result['EXPIRY']) == False:
-            return {'ERROR': 'INVALID EXPIRY DATE', 'BARCODE': result}
-        elif ppn_check(result['PPN']) == False:
-            return {'ERROR': 'INVALID PPN', 'BARCODE': result}
+    if 'PPN' and 'BATCH' and 'EXPIRY' and 'SERIAL' in sresult.keys():
+        if ppn_check(sresult['PPN']) is False and expiry_date_check(sresult['EXPIRY']) is False:
+            return {'ERROR': 'INVALID PPN & EXPIRY DATE', 'BARCODE': sresult}
+        elif expiry_date_check(sresult['EXPIRY']) is False:
+            return {'ERROR': 'INVALID EXPIRY DATE', 'BARCODE': sresult}
+        elif not ppn_check(sresult['PPN']):
+            return {'ERROR': 'INVALID PPN', 'BARCODE': sresult}
         else:
-            return result
+            return sresult
     else:
-        return {'ERROR': 'INCOMPLETE DATA', 'BARCODE': result}
+        return {'ERROR': 'INCOMPLETE DATA', 'BARCODE': sresult}
 
 
 def ppn_check(ppn: str) -> bool:
-    i = 0
+    # i = 0
     weight = 2
     digit_sum = 0
     for i in range(10):
@@ -275,3 +281,5 @@ def ppn_check(ppn: str) -> bool:
         weight += 1
     check_digit = digit_sum % 97
     return check_digit == int(ppn[-2:])  # PPN last two chars are converted to int to remove any leading zero.
+
+# parse_barcode('0103041094787443215Qbag!<GS>93Zjqw')
