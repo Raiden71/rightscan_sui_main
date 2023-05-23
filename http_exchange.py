@@ -6,6 +6,8 @@ from requests.auth import HTTPBasicAuth
 import ui_barcodes
 
 import ui_global
+from hs_services import HsService
+from db_services import DocService
 from ui_global import get_query_result
 
 def replase_gs_in_res(struct):
@@ -132,7 +134,7 @@ def json_to_sqlite_query(data):
         for row in data[table_name]:
 
             row_values = []
-            list_quoted_fields = ('name', 'full_name', "mark_code")
+            list_quoted_fields = ('name', 'full_name', "mark_code", "art")
             for col in column_names:
                 if col in list_quoted_fields and  "\"" in row[col]:
                     row[col] = row[col].replace("\"", "\"\"")
@@ -248,6 +250,18 @@ def post_changes_to_server(doc_list , htpparams):
     return answer
 
 
+def post_goods_to_server(doc_id, http_params):
+    hs_service = HsService(http_params)
+    doc_service = DocService(doc_id)
+
+    res = doc_service.get_last_edited_goods(to_json=True)
+
+    if isinstance(res, dict) and res.get('Error'):
+        answer = {'empty': True, 'Error': res.get('Error')}
+        return answer
+
+    answer = hs_service.send_documents(res)
+    return answer
 
 
 #
