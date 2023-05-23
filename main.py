@@ -4,7 +4,7 @@ import ui_barcodes
 import ui_csv
 import ui_global
 import ui_form_data
-import ui_form_data2 as ui_tables_structure
+import ui_form_data2
 import socket
 import json
 import requests
@@ -2430,7 +2430,7 @@ def get_table_cards(table_name: str, filter_fields=list(), filter_value='', excl
 
 def open_wh_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.wh_list_cards
+    j = ui_form_data2.wh_list_cards
 
     j["customcards"]["cardsdata"] = []
 
@@ -2471,9 +2471,9 @@ def get_remains(hashMap, _files=None, _data=None):
 
         params = {'android_id': http['android_id'], 'id_cell': hashMap.get('selected_cell_id')}
 
-        goods_custom_table = ui_tables_structure.goods_custom_table_cell
+        goods_custom_table = ui_form_data2.goods_custom_table_cell
 
-        tbody_layout = ui_tables_structure.tbody_remains_layout_cell
+        tbody_layout = ui_form_data2.tbody_remains_layout_cell
 
         hashMap.put('selected_cell_name', hashMap.get('cell_input'))
         hashMap.put('Show_selected_cell_name', '1')
@@ -2545,9 +2545,9 @@ def get_remains(hashMap, _files=None, _data=None):
 
             params = {'android_id': http['android_id']}
 
-            goods_custom_table = ui_tables_structure.goods_custom_table_wh
+            goods_custom_table = ui_form_data2.goods_custom_table_wh
 
-            tbody_layout = ui_tables_structure.tbody_remains_layout_wh
+            tbody_layout = ui_form_data2.tbody_remains_layout_wh
 
             if hashMap.get('selected_good_id'):
                 params['id_good'] = hashMap.get('selected_good_id')
@@ -2731,7 +2731,7 @@ def back_to_remains(hashMap, _files=None, _data=None):
 
 def price_types_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.price_types_list_cards
+    j = ui_form_data2.price_types_list_cards
 
     j["customcards"]["cardsdata"] = []
 
@@ -2750,7 +2750,7 @@ def price_types_list_on_start(hashMap, _files=None, _data=None):
 
 def property_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.property_list_cards
+    j = ui_form_data2.property_list_cards
 
     j["customcards"]["cardsdata"] = []
 
@@ -2774,7 +2774,7 @@ def property_list_on_start(hashMap, _files=None, _data=None):
 
 def unit_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.unit_list_cards
+    j = ui_form_data2.unit_list_cards
 
     j["customcards"]["cardsdata"] = []
 
@@ -2801,9 +2801,9 @@ def get_prices(hashMap, _files=None, _data=None):
 
     http = get_http_settings(hashMap)
 
-    prices_custom_table = ui_tables_structure.prices_custom_table
+    prices_custom_table = ui_form_data2.prices_custom_table
 
-    tbody_layout = ui_tables_structure.tbody_prices_layout
+    tbody_layout = ui_form_data2.tbody_prices_layout
 
     get_good_by_art(hashMap)
 
@@ -3146,7 +3146,7 @@ def get_good_variants(hashMap, _files=None, _data=None):
             "SELECT barcode,id_property,id_series,id_unit FROM RS_barcodes WHERE id_good = '" + selected_good_id +
             "'")
 
-    barcode_cards = ui_tables_structure.barcode_cards
+    barcode_cards = ui_form_data2.barcode_cards
 
     barcode_cards["customcards"]["cardsdata"] = []
 
