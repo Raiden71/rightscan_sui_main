@@ -4,7 +4,6 @@ import ui_barcodes
 import ui_csv
 import ui_global
 import ui_form_data
-import ui_tables_structure
 import socket
 import json
 import requests
@@ -16,8 +15,6 @@ import importlib
 from java import jclass
 import http_exchange
 from requests.auth import HTTPBasicAuth
-from ru.travelfood.simple_ui import ImportUtils as iuClass
-
 
 noClass = jclass("ru.travelfood.simple_ui.NoSQL")
 rs_settings = noClass("rs_settings")
@@ -26,7 +23,6 @@ importlib.reload(ui_csv)
 importlib.reload(ui_global)
 importlib.reload(ui_form_data)
 importlib.reload(database_init_queryes)
-importlib.reload(ui_tables_structure)
 
 
 # -----
@@ -237,7 +233,7 @@ def doc_details_on_start(hashMap, _files=None, _data=None):
     doc_detail_list = ui_form_data.get_doc_detail_cards(use_series, use_properties,rs_settings)
     doc_detail_list['customcards']['cardsdata'] = []
 
-    # Получаем текущий документ
+    # Получаем теекущий документ
     current_str = hashMap.get("selected_card_position")
     jlist = json.loads(hashMap.get('docCards'))
 
@@ -1291,13 +1287,6 @@ def price_on_start(hashMap, _files=None, _data=None):
     return hashMap
 
 
-def prices_on_start(hashMap, _files=None, _data=None):
-    """if hashMap.get('selected_good_id'):
-        get_prices(hashMap)"""
-
-    return hashMap
-
-
 def prices_on_input(hashMap, _files=None, _data=None):
     if hashMap.get('listener') == "get_prices_btn":
         get_prices(hashMap)
@@ -1486,6 +1475,10 @@ def new_doc_on_select(hashMap, _files=None, _data=None):
     fld_number = hashMap.get('fld_number')
 
     if listener == "btn_ok":
+        if not type or type=='Все':
+            hashMap.put('toast','Укажите тип документа')
+            return hashMap
+
         if not fld_number:
 
             id = ui_global.Rs_doc.get_new_id(1)
@@ -2003,8 +1996,8 @@ def timer_update(hashMap,  _files=None, _data=None):
                 rs_settings.put('error_log', str(error_pool), True)
                 hashMap.put('toast', 'При загрузке были ошибки. Проверьте их в настройках (кнопка посмотреть ошибки)')
         if hashMap.get('current_screen_name') == 'Документы':
-            hashMap.put('toast', 'Документы')
-            #docs_on_start(hashMap)
+            #hashMap.put('toast', 'Документы')
+            docs_on_start(hashMap)
         #tiles_on_start(hashMap)
             docs_adr_on_start(hashMap)
             hashMap.put('RefreshScreen','')
@@ -2428,9 +2421,46 @@ def get_table_cards(table_name: str, filter_fields=list(), filter_value='', excl
     return json.dumps(cards)
 
 
+
+# Литвиненко Олег. Создание таблиц по запросу остатков и цен. 16.05.2023
+
 def open_wh_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.wh_list_cards
+    j = {"customcards": {
+            "options": {
+                "search_enabled": True,
+                "save_position": True
+
+            },
+            "layout": {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "0",
+                "Elements": [
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@name",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "-1",
+                        "TextColor": "#6F9393",
+                        "TextBold": False,
+                        "TextItalic": True,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 0
+                    }
+                ]
+            }
+
+        }
+    }
 
     j["customcards"]["cardsdata"] = []
 
@@ -2450,6 +2480,11 @@ def open_wh_list_on_start(hashMap, _files=None, _data=None):
 def get_remains(hashMap, _files=None, _data=None):
 
     http = get_http_settings(hashMap)
+
+    """if hashMap.get('goods_custom_table'):
+        hashMap.put('error_msg', '')"""
+
+    # identify_barcode_remains(hashMap)
 
     if hashMap.get('good_art_input') or hashMap.get('cell_input'):
         identify_input_text(hashMap)
@@ -2471,9 +2506,275 @@ def get_remains(hashMap, _files=None, _data=None):
 
         params = {'android_id': http['android_id'], 'id_cell': hashMap.get('selected_cell_id')}
 
-        goods_custom_table = ui_tables_structure.goods_custom_table_cell
+        goods_custom_table = {"customtable": {
+            "options": {
+                "search_enabled": True,
+                "save_position": True
+            },
 
-        tbody_layout = ui_tables_structure.tbody_remains_layout_cell
+            "layout": {
+                "type": "LinearLayout",
+                "orientation": "horizontal",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "Padding": "0",
+                "Elements": [
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Ячейка",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Товар",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Количество",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Характеристики",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        }
+
+        tbody_layout = {
+            "type": "LinearLayout",
+            "orientation": "horizontal",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "1",
+            "Padding": "0",
+            "Elements": [
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@cell",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@item",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@quantity",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@properties",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                }
+            ]
+        }
 
         hashMap.put('selected_cell_name', hashMap.get('cell_input'))
         hashMap.put('Show_selected_cell_name', '1')
@@ -2545,9 +2846,275 @@ def get_remains(hashMap, _files=None, _data=None):
 
             params = {'android_id': http['android_id']}
 
-            goods_custom_table = ui_tables_structure.goods_custom_table_wh
+            goods_custom_table = {"customtable": {
+                "options": {
+                    "search_enabled": True,
+                    "save_position": True
+                },
 
-            tbody_layout = ui_tables_structure.tbody_remains_layout_wh
+                "layout": {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "Padding": "0",
+                    "Elements": [
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Склад",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        },
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Товар",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        },
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Количество",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        },
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Характеристики",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+            }
+
+            tbody_layout = {
+                "type": "LinearLayout",
+                "orientation": "horizontal",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "Padding": "0",
+                "Elements": [
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@warehouse",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@item",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@quantity",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@properties",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    }
+                ]
+            }
 
             if hashMap.get('selected_good_id'):
                 params['id_good'] = hashMap.get('selected_good_id')
@@ -2731,7 +3298,41 @@ def back_to_remains(hashMap, _files=None, _data=None):
 
 def price_types_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.price_types_list_cards
+    j = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+
+        },
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "0",
+            "Elements": [
+                {
+                    "type": "TextView",
+                    "show_by_condition": "",
+                    "Value": "@name",
+                    "NoRefresh": False,
+                    "document_type": "",
+                    "mask": "",
+                    "Variable": "",
+                    "TextSize": "-1",
+                    "TextColor": "#6F9393",
+                    "TextBold": False,
+                    "TextItalic": True,
+                    "BackgroundColor": "",
+                    "width": "match_parent",
+                    "height": "wrap_content",
+                    "weight": 0
+                }
+            ]
+        }
+
+    }
+    }
 
     j["customcards"]["cardsdata"] = []
 
@@ -2750,7 +3351,41 @@ def price_types_list_on_start(hashMap, _files=None, _data=None):
 
 def property_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.property_list_cards
+    j = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+
+        },
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "0",
+            "Elements": [
+                {
+                    "type": "TextView",
+                    "show_by_condition": "",
+                    "Value": "@name",
+                    "NoRefresh": False,
+                    "document_type": "",
+                    "mask": "",
+                    "Variable": "",
+                    "TextSize": "-1",
+                    "TextColor": "#6F9393",
+                    "TextBold": False,
+                    "TextItalic": True,
+                    "BackgroundColor": "",
+                    "width": "match_parent",
+                    "height": "wrap_content",
+                    "weight": 0
+                }
+            ]
+        }
+
+    }
+    }
 
     j["customcards"]["cardsdata"] = []
 
@@ -2774,7 +3409,41 @@ def property_list_on_start(hashMap, _files=None, _data=None):
 
 def unit_list_on_start(hashMap, _files=None, _data=None):
 
-    j = ui_tables_structure.unit_list_cards
+    j = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+
+        },
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "0",
+            "Elements": [
+                {
+                    "type": "TextView",
+                    "show_by_condition": "",
+                    "Value": "@name",
+                    "NoRefresh": False,
+                    "document_type": "",
+                    "mask": "",
+                    "Variable": "",
+                    "TextSize": "-1",
+                    "TextColor": "#6F9393",
+                    "TextBold": False,
+                    "TextItalic": True,
+                    "BackgroundColor": "",
+                    "width": "match_parent",
+                    "height": "wrap_content",
+                    "weight": 0
+                }
+            ]
+        }
+
+    }
+    }
 
     j["customcards"]["cardsdata"] = []
 
@@ -2801,9 +3470,335 @@ def get_prices(hashMap, _files=None, _data=None):
 
     http = get_http_settings(hashMap)
 
-    prices_custom_table = ui_tables_structure.prices_custom_table
+    prices_custom_table = {"customtable": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+        },
 
-    tbody_layout = ui_tables_structure.tbody_prices_layout
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "horizontal",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "1",
+            "Padding": "0",
+            "Elements": [
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Товар",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Характеристики",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Цена",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Тип цены",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Упаковка",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    }
+
+    tbody_layout = {
+        "type": "LinearLayout",
+        "orientation": "horizontal",
+        "height": "match_parent",
+        "width": "match_parent",
+        "weight": "1",
+        "Padding": "0",
+        "Elements": [
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@good",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@property",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@price",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@price_type",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@unit",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            }
+        ]
+    }
 
     get_good_by_art(hashMap)
 
@@ -3146,7 +4141,128 @@ def get_good_variants(hashMap, _files=None, _data=None):
             "SELECT barcode,id_property,id_series,id_unit FROM RS_barcodes WHERE id_good = '" + selected_good_id +
             "'")
 
-    barcode_cards = ui_tables_structure.barcode_cards
+    barcode_cards = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+        },
+
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "1",
+            "Padding": "0",
+            "Elements": [
+                {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@properties",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@unit",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        },
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@barcode",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@series",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    }
 
     barcode_cards["customcards"]["cardsdata"] = []
 
@@ -3317,16 +4433,5 @@ def remains_tables_on_input(hashMap, _files=None, _data=None):
                 hashMap.put('ShowScreen', 'Проверка цен')
     if hashMap.get('listener') == 'barcode':
         identify_barcode_remains(hashMap)
-    if hashMap.get('listener') == 'CardsClick':
-        hashMap.put('toast', hashMap.get('selected_card_key'))
     return hashMap
-
-
-
-
-
-
-
-
-
 
