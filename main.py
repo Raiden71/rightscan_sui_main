@@ -15,8 +15,6 @@ import importlib
 from java import jclass
 import http_exchange
 from requests.auth import HTTPBasicAuth
-from ru.travelfood.simple_ui import ImportUtils as iuClass
-
 
 noClass = jclass("ru.travelfood.simple_ui.NoSQL")
 rs_settings = noClass("rs_settings")
@@ -1289,13 +1287,6 @@ def price_on_start(hashMap, _files=None, _data=None):
     return hashMap
 
 
-def prices_on_start(hashMap, _files=None, _data=None):
-    """if hashMap.get('selected_good_id'):
-        get_prices(hashMap)"""
-
-    return hashMap
-
-
 def prices_on_input(hashMap, _files=None, _data=None):
     if hashMap.get('listener') == "get_prices_btn":
         get_prices(hashMap)
@@ -1484,6 +1475,10 @@ def new_doc_on_select(hashMap, _files=None, _data=None):
     fld_number = hashMap.get('fld_number')
 
     if listener == "btn_ok":
+        if not type or type=='Все':
+            hashMap.put('toast','Укажите тип документа')
+            return hashMap
+
         if not fld_number:
 
             id = ui_global.Rs_doc.get_new_id(1)
@@ -2001,8 +1996,8 @@ def timer_update(hashMap,  _files=None, _data=None):
                 rs_settings.put('error_log', str(error_pool), True)
                 hashMap.put('toast', 'При загрузке были ошибки. Проверьте их в настройках (кнопка посмотреть ошибки)')
         if hashMap.get('current_screen_name') == 'Документы':
-            hashMap.put('toast', 'Документы')
-            #docs_on_start(hashMap)
+            #hashMap.put('toast', 'Документы')
+            docs_on_start(hashMap)
         #tiles_on_start(hashMap)
             docs_adr_on_start(hashMap)
             hashMap.put('RefreshScreen','')
@@ -2426,6 +2421,9 @@ def get_table_cards(table_name: str, filter_fields=list(), filter_value='', excl
     return json.dumps(cards)
 
 
+
+# Литвиненко Олег. Создание таблиц по запросу остатков и цен. 16.05.2023
+
 def open_wh_list_on_start(hashMap, _files=None, _data=None):
 
     j = {"customcards": {
@@ -2646,8 +2644,6 @@ def get_remains(hashMap, _files=None, _data=None):
             }
         }
         }
-
-
 
         tbody_layout = {
             "type": "LinearLayout",
@@ -4438,13 +4434,4 @@ def remains_tables_on_input(hashMap, _files=None, _data=None):
     if hashMap.get('listener') == 'barcode':
         identify_barcode_remains(hashMap)
     return hashMap
-
-
-
-
-
-
-
-
-
 
