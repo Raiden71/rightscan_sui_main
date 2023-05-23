@@ -4,7 +4,7 @@ import ui_barcodes
 import ui_csv
 import ui_global
 import ui_form_data
-import ui_tables_structure
+import ui_form_data2 as ui_tables_structure
 import socket
 import json
 import requests
@@ -12,10 +12,12 @@ import database_init_queryes
 import os
 from PIL import Image
 import importlib
-# from rs_settings import RSSettings
+from rs_settings import RSSettings
 from java import jclass
 import http_exchange
 from requests.auth import HTTPBasicAuth
+import ui_utils
+from ui_utils import HashMap
 
 noClass = jclass("ru.travelfood.simple_ui.NoSQL")
 rs_settings = noClass("rs_settings")
@@ -23,9 +25,10 @@ rs_settings = noClass("rs_settings")
 importlib.reload(ui_csv)
 importlib.reload(ui_global)
 importlib.reload(ui_form_data)
-importlib.reload(database_init_queryes)
 importlib.reload(ui_tables_structure)
-
+importlib.reload(database_init_queryes)
+importlib.reload(http_exchange)
+importlib.reload(ui_utils)
 
 # -----
 # 0100608940553886215,iPGSQpBt!&B
@@ -232,8 +235,11 @@ def doc_details_on_start(hashMap, _files=None, _data=None):
     use_series = res[1]
     use_properties = res[2]
     hashMap.put('use_properties', res[2])
-    doc_detail_list = ui_form_data.get_doc_detail_cards(use_series, use_properties,rs_settings)
-    doc_detail_list['customcards']['cardsdata'] = []
+    # doc_detail_list = ui_form_data.get_doc_detail_cards(use_series, use_properties, rs_settings)
+    doc_detail_list = ui_tables_structure.get_doc_detail_table_head(settings_global=rs_settings)
+    tbody_layout = ui_tables_structure.get_doc_detail_table_body_layout(use_series, use_properties, rs_settings)
+    # doc_detail_list['customtable']['tabledata'] = []
+    doc_detail_list["customtable"]["tabledata"] = [{}]
 
     # Получаем теекущий документ
     current_str = hashMap.get("selected_card_position")
@@ -275,10 +281,12 @@ def doc_details_on_start(hashMap, _files=None, _data=None):
                 'qtty_plan': str(record['qtty_plan'] if record['qtty_plan'] is not None else 0),
                 'price': str(record['price'] if record['price'] is not None else 0),
                 'price_name': str(record['price_name']),
-                'picture': pic
+                'picture': pic,
+                '_layout': tbody_layout
             }
 
-            doc_detail_list['customcards']['cardsdata'].append(product_row)
+
+            doc_detail_list['customtable']['tabledata'].append(product_row)
 
         # Признак, have_qtty_plan ЕстьПланПОКОличеству  -  Истина когда сумма колонки Qtty_plan > 0
         # Признак  have_mark_plan "ЕстьПланКОдовМаркировки – Истина, когда количество строк табл. RS_docs_barcodes с заданным id_doc и is_plan  больше нуля.
@@ -1799,7 +1807,7 @@ def sound_settings_listener(hashMap, _files=None, _data=None):
     elif listener == 'btn_on_cancel' or listener == 'ON_BACK_PRESSED':
         hashMap.put('ShowScreen', 'Настройки и обмен')
     elif listener == 'btn_test_sound':
-        #hashMap.put('beep_duration ', hashMap.get("beep_duration"))
+        hashMap.put('beep_duration ', hashMap.get("beep_duration"))
         hashMap.put('beep', hashMap.get('signal_num'))
     return hashMap
 
@@ -2568,7 +2576,6 @@ def get_remains(hashMap, _files=None, _data=None):
 
             hashMap.put('Show_selected_cell_name', '-1')
 
-
             r = requests.get(get_remains_url,
                              auth=HTTPBasicAuth(http['user'], http['pass']),
                              headers={'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'},
@@ -2768,6 +2775,7 @@ def property_list_on_start(hashMap, _files=None, _data=None):
         hashMap.put("ShowScreen", "Проверка цен")
 
     return hashMap
+
 
 
 def unit_list_on_start(hashMap, _files=None, _data=None):
@@ -3317,3 +3325,49 @@ def remains_tables_on_input(hashMap, _files=None, _data=None):
         identify_barcode_remains(hashMap)
     return hashMap
 
+
+@HashMap(debug=True)
+def doc_details_on_scan_barcode(hash_map: HashMap):
+    doc = ui_global.Rs_doc
+    doc.id_doc = hash_map['id_doc']
+
+    answer = http_exchange.post_goods_to_server(doc.id_doc, get_http_settings(hash_map))
+    if answer.get('Error') is not None:
+        hash_map.debug(answer.get('Error'))
+
+
+@HashMap()
+def doc_details_on_start_refresh_screen(hash_map: HashMap):
+    pass
+    # time.sleep(3)
+    # doc_goods = hash_map.get('doc_goods', True)
+    # hash_map.toast('start')
+    #
+    # if doc_goods:
+    #     cards_data = doc_goods['customcards']['cardsdata']
+    # #
+    #     try:
+    #         update_data = get_update_goods_data_screen(hash_map['id_doc'], cards_data)
+    #
+    #         if isinstance(update_data, dict) and update_data.get('Error'):
+    #             hash_map.toast('error')
+    #             hash_map.error_log(update_data.get('Error'))
+    #         else:
+    #             update_data = {row['key']: row for row in update_data}
+    #             cards_data_dict = {row['key']: row for row in cards_data}
+    #             for row in cards_data:
+    #                 if update_data.get(row['key']):
+    #                     row['qtty'] = update_data[row['key']]
+    #
+    #             add_rows = [w for k, w in update_data.items() if k not in cards_data_dict]
+    #             cards_data = cards_data + add_rows
+    #             doc_goods['customcards']['cardsdata'] = cards_data
+    #             hash_map.put(doc_goods, True)
+    #             hash_map.refresh_screen()
+    #
+        # except Exception as e:
+        #     hash_map.toast(e.args[0])
+        #     hash_map.send_to_telegram(e.args[0])
+    #
+    # hash_map.run_event_async('doc_details_on_start_refresh_screen')
+    # hash_map.toast('finish')
