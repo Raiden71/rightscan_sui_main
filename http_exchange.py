@@ -134,7 +134,7 @@ def json_to_sqlite_query(data):
         for row in data[table_name]:
 
             row_values = []
-            list_quoted_fields = ('name', 'full_name', "mark_code")
+            list_quoted_fields = ('name', 'full_name', "mark_code", "art")
             for col in column_names:
                 if col in list_quoted_fields and  "\"" in row[col]:
                     row[col] = row[col].replace("\"", "\"\"")
