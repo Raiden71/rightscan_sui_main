@@ -260,7 +260,7 @@ def post_goods_to_server(doc_id, http_params):
         answer = {'empty': True, 'Error': res.get('Error')}
         return answer
 
-    answer = hs_service.send_data(res)
+    answer = hs_service.send_documents(res)
     return answer
 
 
