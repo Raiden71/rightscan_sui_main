@@ -1798,7 +1798,7 @@ def sound_settings_listener(hashMap, _files=None, _data=None):
     elif listener == 'btn_on_cancel' or listener == 'ON_BACK_PRESSED':
         hashMap.put('ShowScreen', 'Настройки и обмен')
     elif listener == 'btn_test_sound':
-        #hashMap.put('beep_duration ', hashMap.get("beep_duration"))
+        hashMap.put('beep_duration ', hashMap.get("beep_duration"))
         hashMap.put('beep', hashMap.get('signal_num'))
     return hashMap
 
@@ -1998,7 +1998,7 @@ def timer_update(hashMap,  _files=None, _data=None):
                 hashMap.put('toast', 'При загрузке были ошибки. Проверьте их в настройках (кнопка посмотреть ошибки)')
         if hashMap.get('current_screen_name') == 'Документы':
             hashMap.put('toast', 'Документы')
-            #docs_on_start(hashMap)
+            docs_on_start(hashMap)
         #tiles_on_start(hashMap)
             docs_adr_on_start(hashMap)
             hashMap.put('RefreshScreen','')

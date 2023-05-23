@@ -15,14 +15,13 @@ from flask import Flask
 from flask import request
 from rs_settings import RSSettings as rs_settings
 import http_exchange
+from requests.auth import HTTPBasicAuth
+import ui_utils
+from ui_utils import HashMap
 
 app = Flask(__name__)
 
-importlib.reload(ui_csv)
-importlib.reload(ui_global)
-importlib.reload(ui_form_data)
-importlib.reload(database_init_queryes)
-
+#
 
 # -----
 # 0100608940553886215,iPGSQpBt!&B
@@ -52,6 +51,7 @@ def settings_on_start(hashMap, _files=None, _data=None):
 
     if not hashMap.containsKey('ip_host'):
         hashMap.put('ip_host', '192.168.1.77')
+
 
     return hashMap
 
@@ -160,32 +160,6 @@ def settings_on_click(hashMap, _files=None, _data=None):
             hashMap.put('toast',str(e))
     elif listener == 'btn_sound_settings':
         hashMap.put('ShowScreen','Настройка звука')
-    return hashMap
-
-
-def goods_on_start(hashMap, _files=None, _data=None):
-    # hashMap.put("mm_local", "")
-    # hashMap.put("mm_compression", "70")
-    # hashMap.put("mm_size", "65")
-    list = ui_form_data.get_goods_card(rs_settings)
-    list['customcards']['cardsdata'] = []
-    query_text = ui_form_data.get_goods_query()
-
-    results = ui_global.get_query_result(query_text)
-
-    for record in results:
-        product_row = {
-            'key': str(record[0]),
-            'GTIN': str(record[0]),
-            'name': str(record[3]),
-            'code': str(record[1]),
-            'type_name': str(record[5]),
-            'unit_name': str(record[7])
-        }
-        list['customcards']['cardsdata'].append(product_row)
-    # **********************
-    hashMap.put("goods_cards", json.dumps(list))
-
     return hashMap
 
 
@@ -535,7 +509,7 @@ def doc_adr_details_listener(hashMap, _files=None, _data=None):
 
         doc_cell = doc.find_cell(doc, barcode)
         if not current_cell and not doc_cell:
-            hashMap.put('beep_duration ', '1000')
+            hashMap.put('beep_duration ', rs_settings.get('beep_duration'))
             hashMap.put("beep", rs_settings.get('signal_num'))
             hashMap.put('toast', 'Не найдена ячейка')
             return hashMap
@@ -559,7 +533,7 @@ def doc_adr_details_listener(hashMap, _files=None, _data=None):
             # hashMap.put('toast',
             #             'Штрих код не зарегистрирован в базе данных. Проверьте товар или выполните обмен данными')
         elif res['Error']:
-            hashMap.put('beep_duration ', '1000')
+            hashMap.put('beep_duration ', rs_settings.get('beep_duration'))
             hashMap.put("beep", rs_settings.get('signal_num'))
             if res['Error'] == 'AlreadyScanned':
 
@@ -807,7 +781,7 @@ def doc_details_listener(hashMap, _files=None, _data=None):
             # hashMap.put('toast',
             #             'Штрих код не зарегистрирован в базе данных. Проверьте товар или выполните обмен данными')
         elif res['Error']:
-            hashMap.put('beep_duration ', '1000')
+            hashMap.put('beep_duration ', rs_settings.get('beep_duration'))
             hashMap.put("beep", rs_settings.get('signal_num'))
             if res['Error'] == 'AlreadyScanned':
 
@@ -1239,14 +1213,14 @@ def elem_viev_on_click(hashMap, _files=None, _data=None):
         #Если строка не существует, создадим ее
         doc = ui_global.Rs_doc
         doc.id_doc = hashMap.get('id_doc')
-        if current_str =='0':
-            pass
+        # if current_str =='0':
+        #     pass
             #jlist['customcards']['cardsdata']
-        else:
-            jlist = json.loads(hashMap.get("doc_goods"))
-            current_elem = jlist['customcards']['cardsdata'][int(current_str)]
-            key = int(current_elem['key'])
-            doc.id_str = int(current_elem['key'])
+        #else:
+        jlist = json.loads(hashMap.get("doc_goods"))
+        current_elem = jlist['customcards']['cardsdata'][int(current_str)]
+        key = int(current_elem['key'])
+        doc.id_str = int(current_elem['key'])
         # ... и запишем ее в базу
 
         qtty = hashMap.get('qtty')
@@ -1292,31 +1266,6 @@ def elem_viev_on_click(hashMap, _files=None, _data=None):
     return hashMap
 
 
-def goods_on_click(hashMap, _files=None, _data=None):
-    listener = hashMap.get("listener")
-
-    if listener == "CardsClick":
-        # Находим ID документа
-        current_str = hashMap.get("selected_card_position")
-        jlist = json.loads(hashMap.get("goods_cards"))
-        current_good = jlist['customcards']['cardsdata'][int(current_str)]
-
-        # id_doc = current_doc['key']
-        hashMap.put('id_good', current_good['key'])
-        hashMap.put('name', current_good['name'])
-        hashMap.put('code', current_good['code'])
-        hashMap.put('type_name', current_good['type_name'])
-        #        hashMap.put('unit_name', current_good['unit_name'])
-
-        hashMap.put("ShowScreen", "Цены товара")
-
-    elif listener == 'ON_BACK_PRESSED':
-
-        hashMap.put('FinishProcess', '')
-
-    return hashMap
-
-
 def price_on_start(hashMap, _files=None, _data=None):
     id_good = hashMap.get('id_good')
     # Формируем таблицу карточек и запрос к базе
@@ -1337,9 +1286,159 @@ def price_on_start(hashMap, _files=None, _data=None):
     return hashMap
 
 
-def price_on_click(hashMap, _files=None, _data=None):
+def prices_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == "get_prices_btn":
+        get_prices(hashMap)
+    if hashMap.get('listener') == "price_type_select":
+        hashMap.put("ShowScreen", 'Выбор типа цены')
+    if hashMap.get('listener') == "property_select":
+        get_good_by_art(hashMap)
+        if hashMap.get('input_good_id'):
+            hashMap.put("ShowScreen", 'Выбор характеристик')
+            # return hashMap
+    if hashMap.get('listener') == "unit_select":
+        get_good_by_art(hashMap)
+        if hashMap.get('input_good_id'):
+            hashMap.put("ShowScreen", 'Выбор упаковки')
+    if hashMap.get('listener') == "barcode":
+        identify_barcode_prices(hashMap)
+    if hashMap.get('listener') == "ON_BACK_PRESSED":
+        kill_price_tables(hashMap)
+        if hashMap.get('return_to_good_card'):
+            hashMap.put('noRefresh', '')
+            hashMap.put("FinishProcessResult", "")
+        else:
+            hashMap.put("FinishProcess", "")
+    return hashMap
+
+
+def price_types_on_input(hashMap, _files=None, _data=None):
+
+    if hashMap.get('listener') == 'CardsClick':
+        selected_price_type_id = hashMap.get("selected_card_key")
+        selected_price_type_name = ui_global.get_query_result("SELECT name FROM RS_price_types where id = '" +
+                                                              selected_price_type_id + "'")
+        hashMap.put('selected_price_type_id', str(selected_price_type_id))
+        hashMap.put("price_type_select", str(selected_price_type_name[0]).split("'")[1])
+        hashMap.put("BackScreen", "")
+        return hashMap
+
+    if hashMap.get('listener') == 'back_to_prices' or 'ON_BACK_PRESSED':
+        back_to_prices(hashMap)
+    return hashMap
+
+
+def properties_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'CardsClick':
+        selected_property_id = hashMap.get("selected_card_key")
+        selected_property_name = ui_global.get_query_result("SELECT name FROM RS_properties where id = '" +
+                                                            selected_property_id + "'")
+
+        hashMap.put('selected_property_id', str(selected_property_id))
+        hashMap.put("property_select", str(selected_property_name[0]).split("'")[1])
+        hashMap.put("BackScreen", "")
+        return hashMap
+    if hashMap.get('listener') == 'back_to_prices' or 'ON_BACK_PRESSED':
+        back_to_prices(hashMap)
+
+    return hashMap
+
+
+def units_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'CardsClick':
+        selected_unit_id = hashMap.get("selected_card_key")
+        selected_unit_name = ui_global.get_query_result("SELECT name FROM RS_units where id = '" +
+                                                        selected_unit_id + "'")
+        hashMap.put('selected_unit_id', str(selected_unit_id))
+        hashMap.put("unit_select", str(selected_unit_name[0]).split("'")[1])
+        hashMap.put("BackScreen", "")
+        return hashMap
+    if hashMap.get('listener') == 'back_to_prices' or 'ON_BACK_PRESSED':
+        back_to_prices(hashMap)
+    return hashMap
+
+
+def prices_tables_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'show_filters':
+        hashMap.put("ShowScreen", "Проверка цен")
+
     if hashMap.get('listener') == 'ON_BACK_PRESSED':
-        hashMap.put("ShowScreen", "Товары список")
+        hashMap.put('barcode', '')
+        hashMap.put('property_id', '')
+
+        if hashMap.get("return_to_good_card"):
+            hashMap.put("BackScreen", '')
+        else:
+            hashMap.put('selected_good_id', '')
+
+            if hashMap.get("current_screen_name") == "Таблица остатков":
+                kill_remains_tables(hashMap)
+                hashMap.put('ShowScreen', 'Проверить остатки')
+            elif hashMap.get("current_screen_name") == "Таблица цен":
+                kill_price_tables(hashMap)
+                hashMap.put('ShowScreen', 'Проверка цен')
+    if hashMap.get('listener') == 'barcode':
+        identify_barcode_prices(hashMap)
+
+    return hashMap
+
+
+def identify_barcode_prices(hashMap, _files=None, _data=None):
+    if hashMap.get('barcode'):
+        hashMap.put('barcode_info', str(hashMap.get('barcode')))
+
+        barcode = hashMap.get('barcode')
+        good_id_query = ui_global.get_query_result(
+            "SELECT id_good FROM RS_barcodes where barcode = '" + barcode + "'")
+        properties_query = ui_global.get_query_result(
+            "SELECT id_property FROM RS_barcodes where barcode = '" + barcode + "'")
+
+        if good_id_query:
+            good_id = str(good_id_query).split("'")[1]
+
+            if len(good_id) > 0:
+                good_name_query = ui_global.get_query_result(
+                    "SELECT name FROM RS_goods where id = '" + good_id + "'")
+
+                good_name = str(good_name_query).split("'")[1]
+
+                good_art_query = ui_global.get_query_result("SELECT art FROM RS_goods where id = '" + good_id + "'")
+
+                good_art = str(good_art_query).split("'")[1]
+
+                hashMap.put('input_good_id', good_id)
+                hashMap.put('input_good_art', good_art)
+                hashMap.put('prices_object_name', good_name)
+                hashMap.put('prices_error_msg', "")
+
+        if properties_query:
+            property_id = str(properties_query).split("'")[1]
+            hashMap.put('property_id', property_id)
+
+            if len(property_id) > 0:
+                hashMap.put('property_id', property_id)
+
+        else:
+            hashMap.put('prices_object_name', "")
+            hashMap.put('prices_error_msg', "Штрихкод не распознан")
+    get_prices(hashMap)
+
+def back_to_prices(hashMap, _files=None, _data=None):
+    if hashMap.get('current_screen_name') == "Выбор типа цены":
+        hashMap.put('selected_price_type_id', '')
+        hashMap.put('selected_price_type_name', '')
+        hashMap.put('price_type_select', '')
+
+    if hashMap.get('current_screen_name') == "Выбор характеристик":
+        hashMap.put('selected_property_id', '')
+        hashMap.put('selected_property_name', '')
+        hashMap.put("property_select", '')
+
+    if hashMap.get('current_screen_name') == "Выбор упаковки":
+        hashMap.put('selected_unit_id', "")
+        hashMap.put('selected_unit_name', '')
+        hashMap.put("unit_select", "")
+    hashMap.put("BackScreen", "")
     return hashMap
 
 
@@ -1370,15 +1469,11 @@ def new_doc_on_start(hashMap, _files=None, _data=None):
 def new_doc_on_select(hashMap, _files=None, _data=None):
     listener = hashMap.get("listener")
     type = hashMap.get('doc_type_click')
-    # if not type:
-    #     type = 'Приход'
+    if not type:
+        type = 'Приход'
     fld_number = hashMap.get('fld_number')
 
     if listener == "btn_ok":
-        if not type or type=='Все':
-            hashMap.put('toast','Укажите тип документа')
-            return hashMap
-
         if not fld_number:
 
             id = ui_global.Rs_doc.get_new_id(1)
@@ -1606,22 +1701,20 @@ def put_notification(hashMap, _files=None, _data=None):
 def font_size_settings_listener(hashMap, _files=None, _data=None):
     listener = hashMap.get('listener')
     if listener == 'btn_on_save' or hashMap.get('event')=='Input':
-        params = rs_settings
-        params.put("TitleTextSize", hashMap.get("TitleTextSize"), True)
-        params.put("CardTitleTextSize", hashMap.get("CardTitleTextSize"), True)
-        params.put("CardTextSize", hashMap.get("CardTextSize"), True)
-        params.put("CardDateTextSize", hashMap.get("CardDateTextSize"), True)
-        params.put("GoodsCardTitleTextSize", hashMap.get("GoodsCardTitleTextSize"), True)
-        params.put("goodsTextSize", hashMap.get("goodsTextSize"), True)
-        params.put("SeriesPropertiesTextSize", hashMap.get("SeriesPropertiesTextSize"), True)
-        params.put("DocTypeCardTextSize", hashMap.get("DocTypeCardTextSize"), True)
-        params.put("titleDocTypeCardTextSize", hashMap.get("titleDocTypeCardTextSize"), True)
+
+        rs_settings.put("TitleTextSize", hashMap.get("TitleTextSize"), True)
+        rs_settings.put("CardTitleTextSize", hashMap.get("CardTitleTextSize"), True)
+        rs_settings.put("CardTextSize", hashMap.get("CardTextSize"), True)
+        rs_settings.put("CardDateTextSize", hashMap.get("CardDateTextSize"), True)
+        rs_settings.put("GoodsCardTitleTextSize", hashMap.get("GoodsCardTitleTextSize"), True)
+        rs_settings.put("goodsTextSize", hashMap.get("goodsTextSize"), True)
+        rs_settings.put("SeriesPropertiesTextSize", hashMap.get("SeriesPropertiesTextSize"), True)
+        rs_settings.put("DocTypeCardTextSize", hashMap.get("DocTypeCardTextSize"), True)
+        rs_settings.put("titleDocTypeCardTextSize", hashMap.get("titleDocTypeCardTextSize"), True)
         #params.put("signal_num", hashMap.get("signal_num"), True)
     elif listener == 'btn_on_cancel' or listener == 'ON_BACK_PRESSED':
         hashMap.put('ShowScreen', 'Настройки и обмен')
-    elif listener == 'sound_test':
-        hashMap.put('beep_duration ', '1000')
-        hashMap.put('beep', hashMap.get('signal_num'))
+
     return hashMap
 
 
@@ -1639,25 +1732,38 @@ def font_sizes_on_start(hashMap, _files=None, _data=None):
         'DocTypeCardTextSize': 'Тип документа',
         'titleDocTypeCardTextSize':'Название документа в карточке'}  #,       'signal_num': "Номер сигнала"
 
-    #fields_from_settings(hashMap,ss)
-    params = rs_settings.getallkeys()
-    for parameter_name in params:  # .items():
-
-        if not ss.get(parameter_name):
-            continue
-
-        #stored_param = hashMap.get(parameter_name)
-
-        #if not stored_param:
-        stored_param = rs_settings.get(parameter_name)
-
-        #  pass
-            # try:
-            #     i = int(stored_param)
-            # except:
-            #     stored_param = json.loads(stored_param)["default_text"]
-
-        hashMap.put(parameter_name, json.dumps({"hint": ss[parameter_name],"default_text":stored_param}))
+    hashMap.put('TitleTextSize',  ui_form_data.ModernField(hint='Размер заголовка', default_text=rs_settings.get('TitleTextSize'), password=False).to_json()) #  )
+    hashMap.put('CardTitleTextSize',
+                ui_form_data.ModernField(hint='Размер заголовка карточки', default_text=rs_settings.get('CardTitleTextSize'),
+                                         password=False).to_json())  # )
+    #"CardDateTextSize": 'Данные карточки',
+    hashMap.put('CardDateTextSize',
+                ui_form_data.ModernField(hint='Данные карточки', default_text=rs_settings.get('CardDateTextSize'),
+                                         password=False).to_json())  # )
+    #'CardTextSize':'Размер текста элементов',
+    hashMap.put('CardTextSize',
+                ui_form_data.ModernField(hint='Размер текста элементов', default_text=rs_settings.get('CardTextSize'),
+                                         password=False).to_json())  # )
+    #'GoodsCardTitleTextSize': 'Заголовок товара',
+    hashMap.put('GoodsCardTitleTextSize',
+                ui_form_data.ModernField(hint='Заголовок товара', default_text=rs_settings.get('GoodsCardTitleTextSize'),
+                                         password=False).to_json())  # )
+    #'goodsTextSize': 'Товар',
+    hashMap.put('goodsTextSize',
+                ui_form_data.ModernField(hint='Товар', default_text=rs_settings.get('goodsTextSize'),
+                                         password=False).to_json())  # )
+    #'SeriesPropertiesTextSize': 'Серии свойства',
+    hashMap.put('SeriesPropertiesTextSize',
+                ui_form_data.ModernField(hint='Серии свойства', default_text=rs_settings.get('SeriesPropertiesTextSize'),
+                                         password=False).to_json())  # )
+    #'DocTypeCardTextSize': 'Тип документа',
+    hashMap.put('DocTypeCardTextSize',
+                ui_form_data.ModernField(hint='Тип документа', default_text=rs_settings.get('DocTypeCardTextSize'),
+                                         password=False).to_json())  # )
+    #'titleDocTypeCardTextSize':'Название документа в карточке'
+    hashMap.put('titleDocTypeCardTextSize',
+                ui_form_data.ModernField(hint='Название документа в карточке', default_text=rs_settings.get('titleDocTypeCardTextSize'),
+                                         password=False).to_json())  # )
 
     return hashMap
 
@@ -1681,7 +1787,8 @@ def sound_settings_listener(hashMap, _files=None, _data=None):
 
         rs_settings.put('signal_num', hashMap.get("signal_num_value"), True)
         rs_settings.put('beep_duration', hashMap.get('beep_duration_value'), True)
-
+        if listener == 'btn_on_save':
+            hashMap.put('ShowScreen', 'Настройки и обмен')
     elif listener == 'btn_on_cancel' or listener == 'ON_BACK_PRESSED':
         hashMap.put('ShowScreen', 'Настройки и обмен')
     elif listener == 'btn_test_sound':
@@ -1846,7 +1953,7 @@ def timer_update(hashMap,  _files=None, _data=None):
     url = get_http_settings(hashMap)
     #url = 'http://192.168.1.77/NSI/hs/simple_accounting/data'
 
-    hashMap.put('toast', 'Обмен') #url)
+    #hashMap.put('toast', 'Обмен') #url)
     try:
         result = http_exchange.server_load_data(url)
     except:
@@ -1884,9 +1991,10 @@ def timer_update(hashMap,  _files=None, _data=None):
                 rs_settings.put('error_log', str(error_pool), True)
                 hashMap.put('toast', 'При загрузке были ошибки. Проверьте их в настройках (кнопка посмотреть ошибки)')
         if hashMap.get('current_screen_name') == 'Документы':
-
+            hashMap.put('toast', 'Документы')
             docs_on_start(hashMap)
         #tiles_on_start(hashMap)
+            docs_adr_on_start(hashMap)
             hashMap.put('RefreshScreen','')
 
     else:
@@ -1954,8 +2062,7 @@ def http_settings_on_start(hashMap,  _files=None, _data=None):
         hashMap.put('url',  ui_form_data.ModernField(hint='url', default_text=http_settings['url'], password=False).to_json()) #  )
         hashMap.put('user', ui_form_data.ModernField(hint='user', default_text=http_settings['user'], password=False).to_json())
         hashMap.put('pass', ui_form_data.ModernField(hint='pass', default_text=http_settings['pass'], password=True).to_json())
-        hashMap.put('user_name',
-                    ui_form_data.ModernField(hint='user_name', default_text=http_settings['user_name'], password=False).to_json())
+        hashMap.put('user_name',ui_form_data.ModernField(hint='user_name', default_text=http_settings['user_name'], password=False).to_json())
     return hashMap
 
 
@@ -1995,8 +2102,10 @@ def http_settings_on_click(hashMap,  _files=None, _data=None):
              params={'user_name': http['user_name'], 'device_model': http['device_model']})
         if r.status_code == 200:
             hashMap.put('btn_test_connection', 'Соединение установлено')
+            hashMap.put('toast', 'Соединение установлено')
         else:
-            hashMap.put('btn_test_connection', r.reason)
+            hashMap.put('btn_test_connection', 'Тест соединения')
+            hashMap.put('toast', 'Не удалось установить соединение')
 
     return hashMap
 
@@ -2230,9 +2339,10 @@ def universal_cards_listener(hashMap, _files=None, _data=None):
     return hashMap
 
 
-def get_table_cards(table_name: str, filter_fields=list(), filter_value='', exclude_list=list()):
+# Добавлен параметр "no_label"
+def get_table_cards(table_name: str, filter_fields=list(), filter_value='', exclude_list=list(), no_label=False):
     # Получим список полей таблицы
-    #table_name = 'RS_goods'
+    # table_name = 'RS_goods'
     res = ui_global.get_query_result(f"PRAGMA table_info({table_name})")
     fields = [f[1] for f in res]
     # Словарь русских имен полей
@@ -2247,43 +2357,45 @@ def get_table_cards(table_name: str, filter_fields=list(), filter_value='', excl
     qfield_text = []
     left_joins_list = []
     for el in fields:
-        link_table_name = tables_dict.get(el)
-        qfield_text.append(table_name + '.' + el)
+        if el not in exclude_list:
+            link_table_name = tables_dict.get(el)
+            qfield_text.append(table_name + '.' + el)
 
-        # Дополним выходную структуру полями таблицы:
-        aliases_elem = aliases.get(el)
-        if aliases_elem: #Для этого поля предусмотрена настройка
-            if not aliases_elem['name'] == 'key':  #Для ключа настройки не нужны
+            # Дополним выходную структуру полями таблицы:
+            aliases_elem = aliases.get(el)
+            if aliases_elem:  # Для этого поля предусмотрена настройка
+                if not aliases_elem['name'] == 'key':  # Для ключа настройки не нужны
+                    if not no_label:
+                        # добавим описание поля:...
+                        card_elem['Value'] = aliases_elem['name']
+                        card_elem['TextSize'] = rs_settings.get('CardDateTextSize')  # aliases_elem['text_size']
+                        card_elem['TextBold'] = False
+                        cards['customcards']['layout']['Elements'][0]['Elements'][0]['Elements'].append(card_elem.copy())
 
-                #добавим описание поля:...
-                card_elem['Value'] = aliases_elem['name']
-                card_elem['TextSize'] = rs_settings.get('CardDateTextSize') # aliases_elem['text_size']
-                card_elem['TextBold'] = False
-                cards['customcards']['layout']['Elements'][0]['Elements'][0]['Elements'].append(card_elem.copy())
-
-                #Теперь само поле:
+                    # Теперь само поле:
+                    card_elem['Value'] = '@' + el
+                    card_elem['TextSize'] = rs_settings.get(aliases_elem['text_size'])
+                    card_elem['TextBold'] = aliases_elem['TextBold']
+            else:  # Иначе просто добавим его со стандартными настройками
                 card_elem['Value'] = '@' + el
-                card_elem['TextSize'] = rs_settings.get(aliases_elem['text_size'])
-                card_elem['TextBold'] = aliases_elem['TextBold']
-        else:  #Иначе просто добавим его со стандатртными настройками
-            card_elem['Value'] = '@' + el
 
-        if link_table_name:
-            # Это ссылка на таблицу
-            qfield_text.append(link_table_name + f'.name as {link_table_name}_name')
-            left_joins_list.append(f'''
-                LEFT JOIN {link_table_name}
-                ON {link_table_name}.id = {table_name}.{el}
-                ''')
-            card_elem['Value'] = f'@{link_table_name}_name'  # Так как поле ссылочное - переименуем его как в запросе
+            if link_table_name:
+                # Это ссылка на таблицу
+                qfield_text.append(link_table_name + f'.name as {link_table_name}_name')
+                left_joins_list.append(f'''
+                    LEFT JOIN {link_table_name}
+                    ON {link_table_name}.id = {table_name}.{el}
+                    ''')
+                card_elem[
+                    'Value'] = f'@{link_table_name}_name'  # Так как поле ссылочное - переименуем его как в запросе
 
-        # Добавим поле в карточки, если оно не в списке исключений
-        if not el in exclude_list:
+            # Добавим поле в карточки
             cards['customcards']['layout']['Elements'][0]['Elements'][0]['Elements'].append(card_elem.copy())
 
     qtext = 'Select ' + ','.join(qfield_text) + f' FROM {table_name} ' + ' '.join(left_joins_list)
-    #Если есть фильтры/отборы - добавим их в запрос
+    # Если есть фильтры/отборы - добавим их в запрос
     if filter_value:
+        # conditions = [f"{field} LIKE '%{filter_value}%'" for field in filter_fields]
         conditions = [f"{table_name}.{field} LIKE '%{filter_value}%'" for field in filter_fields]
         qtext = qtext + f" WHERE {' OR '.join(conditions)}"
     res_query = ui_global.get_query_result(qtext, None, True)
@@ -2303,21 +2415,2067 @@ def get_table_cards(table_name: str, filter_fields=list(), filter_value='', excl
 
     return json.dumps(cards)
 
-@app.route('/set_input_direct/<method>', methods=['POST'])
-def set_input(method):
-    #func = method.replace('_', '', 1)
-    jdata = json.loads(request.data.decode("utf-8"))
-    f = globals()[method]
-    hashMap.d = jdata['hashmap']
-    f(hashMap)
-    jdata['hashmap'] = hashMap.export(hashMap)
-    jdata['stop'] = False
-    jdata['ErrorMessage'] = ""
-    jdata['Rows'] = []
-
-    return json.dumps(jdata)
 
 
+# Литвиненко Олег. Создание таблиц по запросу остатков и цен. 16.05.2023
+
+def open_wh_list_on_start(hashMap, _files=None, _data=None):
+
+    j = {"customcards": {
+            "options": {
+                "search_enabled": True,
+                "save_position": True
+
+            },
+            "layout": {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "0",
+                "Elements": [
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@name",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "-1",
+                        "TextColor": "#6F9393",
+                        "TextBold": False,
+                        "TextItalic": True,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 0
+                    }
+                ]
+            }
+
+        }
+    }
+
+    j["customcards"]["cardsdata"] = []
+
+    query_text = "SELECT * FROM RS_warehouses"
+    results = ui_global.get_query_result(query_text)
+
+    for record in results:
+        c = {"key": str(record[0]), "name": str(record[1])}
+        j["customcards"]["cardsdata"].append(c)
+
+    if not hashMap.containsKey("wh_cards"):
+        hashMap.put("wh_cards", json.dumps(j, ensure_ascii=False).encode('utf8').decode())
+
+    return hashMap
+
+
+def get_remains(hashMap, _files=None, _data=None):
+
+    http = get_http_settings(hashMap)
+
+    """if hashMap.get('goods_custom_table'):
+        hashMap.put('error_msg', '')"""
+
+    # identify_barcode_remains(hashMap)
+
+    if hashMap.get('good_art_input') or hashMap.get('cell_input'):
+        identify_input_text(hashMap)
+
+    if not (hashMap.get('good_art_input') or hashMap.get('wh_select') or hashMap.get('cell_input') or hashMap.get('selected_cell_id')):
+        hashMap.put('goods_custom_table', '')
+        hashMap.put('object_name', '')
+        hashMap.put('cell_name', '')
+        hashMap.put('error_msg', "Должен быть выбран склад, товар или ячейка")
+
+    if hashMap.get("error_msg"):
+        hashMap.put("Show_error_msg", "1")
+    else:
+        hashMap.put("Show_error_msg", "-1")
+
+    if hashMap.get('selected_cell_id'):
+
+        get_remains_url = http['url'] + '/simple_accounting/good_balances/cells?'
+
+        params = {'android_id': http['android_id'], 'id_cell': hashMap.get('selected_cell_id')}
+
+        goods_custom_table = {"customtable": {
+            "options": {
+                "search_enabled": True,
+                "save_position": True
+            },
+
+            "layout": {
+                "type": "LinearLayout",
+                "orientation": "horizontal",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "Padding": "0",
+                "Elements": [
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Ячейка",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Товар",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Количество",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "Характеристики",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "15",
+                                "TextColor": "",
+                                "TextBold": True,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        }
+
+        tbody_layout = {
+            "type": "LinearLayout",
+            "orientation": "horizontal",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "1",
+            "Padding": "0",
+            "Elements": [
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@cell",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@item",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@quantity",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@properties",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "14",
+                            "TextColor": "",
+                            "TextBold": False,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                }
+            ]
+        }
+
+        hashMap.put('selected_cell_name', hashMap.get('cell_input'))
+        hashMap.put('Show_selected_cell_name', '1')
+        hashMap.put('Show_selected_wh_name', '-1')
+
+        if hashMap.get('selected_good_id'):
+            params['id_good'] = hashMap.get('selected_good_id')
+            hashMap.put('selected_object_name', hashMap.get('object_name') + ", " + hashMap.get('good_code'))
+            hashMap.put('Show_selected_object_name', '1')
+        else:
+            hashMap.put('Show_selected_object_name', '-1')
+
+        if hashMap.get('barcode_info'):
+            hashMap.put('Show_barcode_info', '1')
+        else:
+            hashMap.put('Show_barcode_info', '-1')
+
+        hashMap.put('Show_selected_cell_name', '1')
+
+        r = requests.get(get_remains_url,
+                         auth=HTTPBasicAuth(http['user'], http['pass']),
+                         headers={'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'},
+                         params=params)
+
+        json_response = json.loads(r.text.encode("utf-8"))
+
+        values = 0
+        for element in json_response:
+            if element["id_property"]:
+                values += 1
+
+        if values == 0:
+            goods_custom_table['customtable']['layout']['Elements'].pop(3)
+            tbody_layout['Elements'].pop(3)
+
+        if hashMap.get('selected_good_id'):
+            goods_custom_table['customtable']['layout']['Elements'].pop(1)
+            tbody_layout['Elements'].pop(1)
+
+        goods_custom_table['customtable']['layout']['Elements'].pop(0)
+        tbody_layout['Elements'].pop(0)
+
+        goods_custom_table["customtable"]["tabledata"] = [{}]
+
+        i = 0
+        for element in json_response:
+
+            c = {"key": str(i), "item": get_name_by_id("RS_goods", element["id_good"]),
+                 "quantity": element['qtty'], '_layout': tbody_layout,
+                 'cell': get_name_by_id("RS_cells", element["id_cell"])}
+
+            if element["id_property"] is None:
+                c['properties'] = ''
+            else:
+                c['properties'] = get_name_by_field("RS_properties", 'id', element["id_property"])
+            if hashMap.get('property_id'):
+                if element["id_property"] == hashMap.get('property_id'):
+                    goods_custom_table["customtable"]["tabledata"].append(c)
+                    i += 1
+            else:
+                goods_custom_table["customtable"]["tabledata"].append(c)
+                i += 1
+
+    else:
+
+        if hashMap.get('selected_good_id') or hashMap.get('selected_warehouse_id'):
+
+            get_remains_url = http['url'] + '/simple_accounting/good_balances/warehouses?'
+
+            params = {'android_id': http['android_id']}
+
+            goods_custom_table = {"customtable": {
+                "options": {
+                    "search_enabled": True,
+                    "save_position": True
+                },
+
+                "layout": {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "Padding": "0",
+                    "Elements": [
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Склад",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        },
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Товар",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        },
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Количество",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        },
+                        {
+                            "type": "LinearLayout",
+                            "orientation": "vertical",
+                            "height": "match_parent",
+                            "width": "match_parent",
+                            "weight": "1",
+                            "BackgroundColor": "#F0F8FF",
+                            "Padding": "0",
+                            "StrokeWidth": "1",
+                            "Elements": [
+
+                                {
+                                    "type": "TextView",
+                                    "show_by_condition": "",
+                                    "Value": "Характеристики",
+                                    "NoRefresh": False,
+                                    "document_type": "",
+                                    "mask": "",
+                                    "Variable": "",
+                                    "TextSize": "15",
+                                    "TextColor": "",
+                                    "TextBold": True,
+                                    "TextItalic": False,
+                                    "BackgroundColor": "",
+                                    "width": "match_parent",
+                                    "height": "wrap_content",
+                                    "weight": 1
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+            }
+
+            tbody_layout = {
+                "type": "LinearLayout",
+                "orientation": "horizontal",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "Padding": "0",
+                "Elements": [
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@warehouse",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@item",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@quantity",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "LinearLayout",
+                        "orientation": "vertical",
+                        "height": "match_parent",
+                        "width": "match_parent",
+                        "weight": "1",
+                        "BackgroundColor": "#F0F8FF",
+                        "Padding": "0",
+                        "StrokeWidth": "1",
+                        "Elements": [
+
+                            {
+                                "type": "TextView",
+                                "show_by_condition": "",
+                                "Value": "@properties",
+                                "NoRefresh": False,
+                                "document_type": "",
+                                "mask": "",
+                                "Variable": "",
+                                "TextSize": "14",
+                                "TextColor": "",
+                                "TextBold": False,
+                                "TextItalic": False,
+                                "BackgroundColor": "",
+                                "width": "match_parent",
+                                "height": "wrap_content",
+                                "weight": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+
+            if hashMap.get('selected_good_id'):
+                params['id_good'] = hashMap.get('selected_good_id')
+                hashMap.put('selected_object_name', hashMap.get('object_name') + ", " + hashMap.get('good_code'))
+                hashMap.put('Show_selected_object_name', '1')
+            else:
+                hashMap.put('Show_selected_object_name', '-1')
+
+            if hashMap.get('selected_warehouse_id'):
+                params['id_warehouse'] = hashMap.get('selected_warehouse_id')
+                hashMap.put('selected_wh_name', hashMap.get('wh_select'))
+                hashMap.put('Show_selected_wh_name', '1')
+            else:
+                hashMap.put('Show_selected_wh_name', '-1')
+
+            if hashMap.get('barcode_info'):
+                hashMap.put('Show_barcode_info', '1')
+            else:
+                hashMap.put('Show_barcode_info', '-1')
+
+            hashMap.put('Show_selected_cell_name', '-1')
+
+
+            r = requests.get(get_remains_url,
+                             auth=HTTPBasicAuth(http['user'], http['pass']),
+                             headers={'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'},
+                             params=params)
+
+            json_response = json.loads(r.text.encode("utf-8"))
+
+            values = 0
+            for element in json_response:
+                if element["id_property"]:
+                    values += 1
+
+            if values == 0:
+                goods_custom_table['customtable']['layout']['Elements'].pop(3)
+                tbody_layout['Elements'].pop(3)
+
+            if hashMap.get('selected_good_id'):
+                goods_custom_table['customtable']['layout']['Elements'].pop(1)
+                tbody_layout['Elements'].pop(1)
+
+            if hashMap.get('selected_warehouse_id'):
+                goods_custom_table['customtable']['layout']['Elements'].pop(0)
+                tbody_layout['Elements'].pop(0)
+
+            goods_custom_table["customtable"]["tabledata"] = [{}]
+
+            i = 0
+
+            for element in json_response:
+
+                c = {"key": str(i), "item": get_name_by_id("RS_goods", element["id_good"]),
+                     "quantity": element['qtty'], '_layout': tbody_layout,
+                     'warehouse': get_name_by_id("RS_warehouses", element["id_warehouse"])}
+
+                if element["id_property"] is None:
+                    c['properties'] = ''
+                else:
+                    c['properties'] = get_name_by_field("RS_properties", 'id', element["id_property"])
+                if hashMap.get('property_id'):
+                    if element["id_property"] == hashMap.get('property_id'):
+                        goods_custom_table["customtable"]["tabledata"].append(c)
+                        i += 1
+                else:
+                    goods_custom_table["customtable"]["tabledata"].append(c)
+                    i += 1
+
+    hashMap.put('barcode', '')
+
+    if len(goods_custom_table["customtable"]["tabledata"]) < 2:
+        hashMap.put('error_msg', "Товар не найден")
+        hashMap.put('Show_error_msg', '1')
+
+    hashMap.put("goods_custom_table", json.dumps(goods_custom_table))
+
+    hashMap.put("ShowScreen", "Таблица остатков")
+
+    return hashMap
+
+
+def identify_input_text(hashMap):
+
+    good_art_input = hashMap.get('good_art_input')
+    cell_input = hashMap.get('cell_input')
+
+    if good_art_input and not hashMap.get('return_to_good_card'):
+
+        good_name = ui_global.get_query_result("SELECT name FROM RS_goods where art = '" + good_art_input + "'")
+
+        if len(good_name) > 0:
+
+            good_query = ui_global.get_query_result("SELECT id,code FROM RS_goods where art = '" + good_art_input + "'")
+            hashMap.put('selected_good_id', good_query[0][0])
+            hashMap.put('good_code', good_query[0][1])
+            hashMap.put('object_name', str(good_name).split("'")[1])
+            hashMap.put('error_msg', "")
+            hashMap.put('good_art_input', hashMap.get('good_art_input'))
+
+        else:
+            hashMap.put('error_msg', " Товар с артикулом " + "'" + good_art_input + "'" + " не найден")
+            # hashMap.put('object_name', "")
+
+    if cell_input:
+
+        cell_id = ui_global.get_query_result("SELECT id FROM RS_cells where name = '" + cell_input + "'")
+
+        if len(cell_id) > 0:
+            hashMap.put('selected_cell_id', str(cell_id).split("'")[1])
+            hashMap.put('cell_name', cell_input)
+            # hashMap.put('error_msg', "")
+
+        else:
+            if hashMap.get('error_msg'):
+                hashMap.put('error_msg', hashMap.get('error_msg') + "\n" + " Ячейка c именем " + "'" +
+                            cell_input + "'" + " не найдена")
+            else:
+                hashMap.put('error_msg', " Ячейка c именем " + "'" + cell_input + "'" + " не найдена")
+            # hashMap.put('cell_name', "")
+
+    return hashMap
+
+
+def identify_barcode_remains(hashMap, _files=None, _data=None):
+
+    hashMap.put('barcode_info', str(hashMap.get('barcode')))
+
+    if hashMap.get('barcode'):
+        barcode = hashMap.get('barcode')
+
+        good_id = ui_global.get_query_result("SELECT id_good FROM RS_barcodes where barcode = '" + barcode + "'")
+
+        properties_query = ui_global.get_query_result(
+            "SELECT id_property FROM RS_barcodes where barcode = '" + barcode + "'")
+
+        if properties_query:
+            property_id = str(properties_query).split("'")[1]
+            hashMap.put('property_id', property_id)
+
+        if len(good_id) > 0:
+
+            good_name = ui_global.get_query_result("SELECT name FROM RS_goods where id = '" + str(good_id).split("'")[1] + "'")
+
+            good_art = ui_global.get_query_result("SELECT art FROM RS_goods where id = '" + str(good_id).split("'")[1] + "'")
+
+            hashMap.put('selected_good_id', str(good_id).split("'")[1])
+            hashMap.put('good_art_input', str(good_art).split("'")[1])
+            hashMap.put('object_name', str(good_name).split("'")[1])
+            hashMap.put('error_msg', "")
+
+        else:
+
+            cell_id = ui_global.get_query_result("SELECT id FROM RS_cells where barcode = '" + barcode + "'")
+
+            hashMap.put('error_msg', barcode)
+
+            if len(cell_id) > 0:
+
+                cell_name = ui_global.get_query_result("SELECT name FROM RS_cells where id = '" + str(cell_id).split("'")[1] + "'")
+
+                hashMap.put('selected_cell_id', str(cell_id).split("'")[1])
+                hashMap.put('selected_cell_name', str(cell_name).split("'")[1])
+                hashMap.put('error_msg', "")
+            else:
+                hashMap.put('object_name', "")
+                hashMap.put('error_msg', "Штрихкод не распознан")
+
+    get_remains(hashMap)
+
+    return hashMap
+
+
+def back_to_remains(hashMap, _files=None, _data=None):
+    hashMap.put('wh_select', '')
+    hashMap.put('selected_warehouse_id', '')
+    hashMap.put("BackScreen", "")
+
+    return hashMap
+
+
+def price_types_list_on_start(hashMap, _files=None, _data=None):
+
+    j = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+
+        },
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "0",
+            "Elements": [
+                {
+                    "type": "TextView",
+                    "show_by_condition": "",
+                    "Value": "@name",
+                    "NoRefresh": False,
+                    "document_type": "",
+                    "mask": "",
+                    "Variable": "",
+                    "TextSize": "-1",
+                    "TextColor": "#6F9393",
+                    "TextBold": False,
+                    "TextItalic": True,
+                    "BackgroundColor": "",
+                    "width": "match_parent",
+                    "height": "wrap_content",
+                    "weight": 0
+                }
+            ]
+        }
+
+    }
+    }
+
+    j["customcards"]["cardsdata"] = []
+
+    query_text = "SELECT * FROM RS_price_types"
+    results = ui_global.get_query_result(query_text)
+
+    for record in results:
+        c = {"key": str(record[0]), "name": str(record[1])}
+        j["customcards"]["cardsdata"].append(c)
+
+    if not hashMap.containsKey("price_type_cards"):
+        hashMap.put("price_type_cards", json.dumps(j, ensure_ascii=False).encode('utf8').decode())
+
+    return hashMap
+
+
+def property_list_on_start(hashMap, _files=None, _data=None):
+
+    j = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+
+        },
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "0",
+            "Elements": [
+                {
+                    "type": "TextView",
+                    "show_by_condition": "",
+                    "Value": "@name",
+                    "NoRefresh": False,
+                    "document_type": "",
+                    "mask": "",
+                    "Variable": "",
+                    "TextSize": "-1",
+                    "TextColor": "#6F9393",
+                    "TextBold": False,
+                    "TextItalic": True,
+                    "BackgroundColor": "",
+                    "width": "match_parent",
+                    "height": "wrap_content",
+                    "weight": 0
+                }
+            ]
+        }
+
+    }
+    }
+
+    j["customcards"]["cardsdata"] = []
+
+    query_text = "SELECT * FROM RS_properties WHERE id_owner = '" + hashMap.get('input_good_id') + "'"
+    results = ui_global.get_query_result(query_text)
+
+    if len(results) > 0:
+        for record in results:
+            c = {"key": str(record[0]), "name": str(record[2])}
+            j["customcards"]["cardsdata"].append(c)
+
+        if not hashMap.containsKey("property_cards"):
+            hashMap.put("property_cards", json.dumps(j, ensure_ascii=False).encode('utf8').decode())
+
+    else:
+        hashMap.put("toast", "Для данного товара нет характеристик")
+        hashMap.put("ShowScreen", "Проверка цен")
+
+    return hashMap
+
+
+def unit_list_on_start(hashMap, _files=None, _data=None):
+
+    j = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+
+        },
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "0",
+            "Elements": [
+                {
+                    "type": "TextView",
+                    "show_by_condition": "",
+                    "Value": "@name",
+                    "NoRefresh": False,
+                    "document_type": "",
+                    "mask": "",
+                    "Variable": "",
+                    "TextSize": "-1",
+                    "TextColor": "#6F9393",
+                    "TextBold": False,
+                    "TextItalic": True,
+                    "BackgroundColor": "",
+                    "width": "match_parent",
+                    "height": "wrap_content",
+                    "weight": 0
+                }
+            ]
+        }
+
+    }
+    }
+
+    j["customcards"]["cardsdata"] = []
+
+    query_text = "SELECT * FROM RS_units WHERE id_owner = '" + hashMap.get('input_good_id') + "'"
+    results = ui_global.get_query_result(query_text)
+
+    if len(results) > 0:
+        for record in results:
+            c = {"key": str(record[0]), "name": str(record[3])}
+            j["customcards"]["cardsdata"].append(c)
+
+        if not hashMap.containsKey("unit_cards"):
+            hashMap.put("unit_cards", json.dumps(j, ensure_ascii=False).encode('utf8').decode())
+
+    else:
+        hashMap.put("toast", "Для данного товара нет выбора упаковки")
+        hashMap.put("ShowScreen", "Проверка цен")
+
+
+    return hashMap
+
+
+def get_prices(hashMap, _files=None, _data=None):
+
+    http = get_http_settings(hashMap)
+
+    prices_custom_table = {"customtable": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+        },
+
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "horizontal",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "1",
+            "Padding": "0",
+            "Elements": [
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Товар",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Характеристики",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Цена",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Тип цены",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "vertical",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "StrokeWidth": "1",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "Упаковка",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    }
+
+    tbody_layout = {
+        "type": "LinearLayout",
+        "orientation": "horizontal",
+        "height": "match_parent",
+        "width": "match_parent",
+        "weight": "1",
+        "Padding": "0",
+        "Elements": [
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@good",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@property",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@price",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@price_type",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            },
+            {
+                "type": "LinearLayout",
+                "orientation": "vertical",
+                "height": "match_parent",
+                "width": "match_parent",
+                "weight": "1",
+                "BackgroundColor": "#F0F8FF",
+                "Padding": "0",
+                "StrokeWidth": "1",
+                "Elements": [
+
+                    {
+                        "type": "TextView",
+                        "show_by_condition": "",
+                        "Value": "@unit",
+                        "NoRefresh": False,
+                        "document_type": "",
+                        "mask": "",
+                        "Variable": "",
+                        "TextSize": "14",
+                        "TextColor": "",
+                        "TextBold": False,
+                        "TextItalic": False,
+                        "BackgroundColor": "",
+                        "width": "match_parent",
+                        "height": "wrap_content",
+                        "weight": 1
+                    }
+                ]
+            }
+        ]
+    }
+
+    get_good_by_art(hashMap)
+
+    if hashMap.get('barcode_info'):
+        hashMap.put('Show_barcode_info', '1')
+    else:
+        hashMap.put('Show_barcode_info', '-1')
+
+    if hashMap.get('input_good_id'):  # Если найден соответствующий товар
+
+        get_prices_url = http['url'] + '/simple_accounting/good_prices?'
+
+        params = {'android_id': http['android_id'], 'id_good': hashMap.get('input_good_id')}
+
+        if hashMap.get('selected_property_id'):
+            params['id_property'] = hashMap.get('selected_property_id')
+
+        if hashMap.get('property_id'):  # От ШК
+            params['id_property'] = hashMap.get('property_id')
+
+        if hashMap.get('selected_unit_id'):
+            params['id_unit'] = hashMap.get('selected_unit_id')
+
+        if hashMap.get('selected_price_type_id'):
+            params['id_price_type'] = hashMap.get('selected_price_type_id')
+
+        r = requests.get(get_prices_url,
+                         auth=HTTPBasicAuth(http['user'], http['pass']),
+                         headers={'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'},
+                         params=params)
+
+        json_prices = json.loads(r.text.encode("utf-8"))
+
+        unit_values = 0
+        property_values = 0
+        for element in json_prices:
+            if element["id_unit"]:
+                unit_values += 1
+            if element['id_property']:
+                property_values += 1
+
+        if unit_values == 0:
+            prices_custom_table['customtable']['layout']['Elements'].pop(4)
+            tbody_layout['Elements'].pop(4)
+
+        if property_values == 0:
+            prices_custom_table['customtable']['layout']['Elements'].pop(1)
+            tbody_layout['Elements'].pop(1)
+
+        prices_custom_table['customtable']['layout']['Elements'].pop(0)
+        tbody_layout['Elements'].pop(0)
+
+        prices_custom_table["customtable"]["tabledata"] = [{}]
+
+        i = 0
+
+        for element in json_prices:
+
+            c = {"key": str(i), "good": element["id_good"], "property": element["id_property"],
+                 "price": element['price'], "price_type": element['id_price_type'], "unit": element["id_unit"],
+                 '_layout': tbody_layout}
+
+            if element['id_good']:
+                c['good'] = get_name_by_id("RS_goods", element["id_good"])
+            else:
+                c['good'] = ""
+
+            if element['id_unit']:
+                c['unit'] = get_name_by_id("RS_units", element["id_unit"])
+            else:
+                c['unit'] = ""
+
+            if element['id_price_type']:
+                c['price_type'] = get_name_by_id("RS_price_types", element["id_price_type"])
+            else:
+                c['price_type'] = ""
+
+            if element["id_property"]:  # Похоже обращение не к той таблице
+                try:
+                    c['property'] = get_name_by_id("RS_properties", element["id_property"])
+                except IndexError:
+                    c['property'] = element["id_property"]
+            else:
+                c['property'] = ""
+
+            prices_custom_table["customtable"]["tabledata"].append(c)
+
+            i += 1
+
+        hashMap.put('prices_custom_table', json.dumps(prices_custom_table))
+
+        hashMap.put('prices_error_msg', "")
+        hashMap.put("ShowScreen", "Таблица цен")
+
+    else:
+        if hashMap.get('input_good_art'):
+            hashMap.put('prices_error_msg', "Не найден соответствующий товар")
+        else:
+            hashMap.put('prices_error_msg', "Не указан товар")
+
+    return hashMap
+
+
+def get_good_by_art(hashMap):
+
+    # hashMap.put('input_value', hashMap.get('input_good_id'))
+
+    if not hashMap.get('input_good_id'):
+
+        if len(hashMap.get('input_good_art')) > 0:
+
+            good_id_query = ui_global.get_query_result("SELECT id FROM RS_goods where art = '" +
+                                                       hashMap.get('input_good_art') + "'")
+
+            good_name_query = ui_global.get_query_result("SELECT name,code FROM RS_goods where art = '" +
+                                                         hashMap.get('input_good_art') + "'")
+
+            if len(good_id_query) > 0:
+                good_id = str(good_id_query).split("'")[1]
+                good_name = good_name_query[0][0]
+                good_code = good_name_query[0][1]
+                hashMap.put("input_good_id", good_id)
+                hashMap.put("prices_object_name", good_name + ", " + good_code)
+                hashMap.put('good_code', good_code)
+        else:
+            hashMap.put('prices_error_msg', "Товар не выбран")
+    return hashMap
+
+
+def get_name_by_id(table_name, record_id):
+
+    query = ui_global.get_query_result(
+        "SELECT name FROM " + table_name.strip('"\'') + " where id = '" + record_id + "'")
+    if type(query) == "str":
+        return str(query).split("'")[1]
+    else:
+        return str(query[0]).split("'")[1]
+
+
+def kill_remains_tables(hashMap, _files=None, _data=None):
+    hashMap.put('wh_select', '')
+    hashMap.put('good_art_input', '')
+    hashMap.put('cell_input', '')
+    hashMap.put('cell_name', '')
+    hashMap.put('object_name', '')
+    hashMap.put('error_msg', '')
+    hashMap.put('goods_custom_table', '')
+    hashMap.put('barcode', '')
+    hashMap.put('selected_cell_id', '')
+    hashMap.put('good_code', '')
+    hashMap.put('selected_object_name', '')
+    hashMap.put('selected_wh_name', '')
+    hashMap.put('selected_warehouse_id', '')
+    hashMap.put('barcode_info', '')
+    return hashMap
+
+
+def kill_price_tables(hashMap, _files=None, _data=None):
+    hashMap.put('input_good_art', '')
+    hashMap.put('prices_object_name', '')
+    hashMap.put('selected_price_type_id', '')
+    hashMap.put('selected_price_type_name', '')
+    hashMap.put('price_type_select', '')
+    hashMap.put('selected_property_id', '')
+    hashMap.put('selected_property_name', '')
+    hashMap.put("property_select", '')
+    hashMap.put('selected_unit_id', "")
+    hashMap.put('selected_unit_name', '')
+    hashMap.put("unit_select", "")
+    hashMap.put('prices_custom_table', '')
+    hashMap.put('input_good_id', '')
+    hashMap.put('barcode', '')
+    hashMap.put('good_code', '')
+    hashMap.put('barcode_info', '')
+
+    return hashMap
+
+
+def goods_on_start(hashMap, _files=None, _data=None):
+
+    if hashMap.get('return_to_good_card'):
+        hashMap.put('')
+
+    filter_fields = []
+    filter_value = ''
+
+    if hashMap.get('type_id'):
+        filter_fields.append('type_good')
+        filter_value = hashMap.get('type_id')
+
+    goods_cards_json = get_table_cards('RS_goods', filter_fields, filter_value, exclude_list=['description'],
+                                       no_label=True)
+    goods_cards = modify_cards(json.loads(goods_cards_json), hide_name=True, title_color="#7A005C",
+                               replace_blank=True, disable_override_search=True)
+    hashMap.put('goods_cards', json.dumps(goods_cards))
+
+    return hashMap
+
+
+def goods_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get("listener") == "CardsClick":
+        hashMap.put('selected_good_id', hashMap.get("selected_card_key"))
+        hashMap.put('barcode', '')
+        hashMap.put('noRefresh', '')
+        hashMap.put("ShowScreen", "Карточка товара")
+    if hashMap.get('listener') == 'select_goods_type':
+        hashMap.put('ShowScreen', "Выбор")
+    if hashMap.get('listener') == 'barcode':
+        identify_barcode_goods(hashMap)
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        hashMap.put('FinishProcess', '')
+    return hashMap
+
+
+def identify_barcode_goods(hashMap, _files=None, _data=None):
+    if hashMap.get('barcode'):
+        barcode = hashMap.get('barcode')
+
+        good_id = ui_global.get_query_result("SELECT id_good FROM RS_barcodes where barcode = '" + barcode + "'")
+
+        properties_query = ui_global.get_query_result(
+            "SELECT id_property FROM RS_barcodes where barcode = '" + barcode + "'")
+
+        if properties_query:
+            property_id = str(properties_query).split("'")[1]
+            hashMap.put('property_id', property_id)
+
+        if len(good_id) > 0:
+            hashMap.put('selected_good_id', str(good_id).split("'")[1])
+
+            hashMap.put('ShowScreen', 'Карточка товара')
+        else:
+            hashMap.put('error_txt', 'Товар не распознан по штрихкоду')
+
+    return hashMap
+
+
+def good_card_on_start(hashMap, _files=None, _data=None):
+
+    if hashMap.get('selected_good_id'):
+        selected_good_id = hashMap.get('selected_good_id')
+
+        result_rs_goods = ui_global.get_query_result("SELECT name,art,code,type_good,description FROM RS_goods where id = '" + selected_good_id + "'")
+
+        good_name = result_rs_goods[0][0]
+        good_art = result_rs_goods[0][1]
+        good_code = result_rs_goods[0][2]
+        good_type_id = result_rs_goods[0][3]
+        good_descr = result_rs_goods[0][4]
+
+        good_type = get_name_by_id('RS_types_goods', good_type_id)
+
+        fill_empty_values(hashMap, {"good_name": good_name, "good_art": good_art, "good_code": good_code,
+                                    "good_descr": good_descr, "good_type": good_type}, value="отсутствует")
+
+        get_good_variants(hashMap)
+
+    return hashMap
+
+
+def good_card_on_load(hashMap,  _files=None, _data=None):
+
+    from ru.travelfood.simple_ui import ImportUtils as iuClass
+    from android.graphics.drawable import GradientDrawable as GradientDrawable
+    from android.graphics import Color
+
+    prices_btn = iuClass.getView("to_prices")
+    remains_btn = iuClass.getView("to_remains")
+
+    shape = GradientDrawable()  # Создаем форму
+    shape.setShape(GradientDrawable.RECTANGLE)
+    shape.setCornerRadius(50)
+    shape.setColor(Color.WHITE)
+    # shape.setColors({Color.rgb(251, 175, 46), Color.rgb(231, 31, 83), Color.rgb(31, 185, 225)})
+    # shape.setGradientType(GradientDrawable.LINEAR_GRADIENT)
+    # shape.setOrientation(GradientDrawable.Orientation.BR_TL)
+    # shape.setPadding(40, 0, 0, 0)
+
+    prices_btn.setBackground(shape)
+    prices_btn.setElevation(15)  # Тень
+    remains_btn.setBackground(shape)
+    remains_btn.setElevation(15)
+
+    return hashMap
+
+
+def good_card_on_input(hashMap,  _files=None, _data=None):
+
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        if hashMap.get('barcode'):
+            hashMap.put('barcode', '')
+        if hashMap.get('barcode_cards'):
+            hashMap.put('barcode_cards', '')
+        if hashMap.get('return_to_good_card'):
+            hashMap.put('return_to_good_card', '')
+        if hashMap.get('selected_good_id'):
+            hashMap.put('selected_good_id', '')
+        if hashMap.get('property_id'):
+            hashMap.put('property_id', '')
+        hashMap.put("ShowScreen", "Товары список")
+    if hashMap.get("listener") == "TilesClick":
+        hashMap.put('toast', str(hashMap.get('selected_tile_key')))
+    if hashMap.get('listener') == 'to_prices':
+        hashMap.put('input_good_id', hashMap.get('selected_good_id'))  # selected_good_id input_good_id
+        hashMap.put('input_good_art', hashMap.get('good_art'))
+        hashMap.put('prices_object_name', hashMap.get('good_name') + ", " + hashMap.get('good_code'))
+        hashMap.put("return_to_good_card", "true")
+        hashMap.put('property_id', hashMap.get('property_id'))
+        hashMap.put('ShowProcessResult', 'Цены|Проверка цен')
+        hashMap.put("noRefresh", '')
+    if hashMap.get('listener') == 'to_remains':
+        hashMap.put('good_art_input', hashMap.get('good_art'))
+        hashMap.put("return_to_good_card", "true")
+        hashMap.put('selected_object_name', hashMap.get('good_name') + ", " + hashMap.get('good_code'))
+        hashMap.put('object_name', hashMap.get('good_name'))
+        hashMap.put('property_id', hashMap.get('property_id'))
+        hashMap.put("noRefresh", '')
+        hashMap.put('ShowProcessResult', 'Остатки|Проверить остатки')
+    return hashMap
+
+
+def price_tables_on_start(hashMap,  _files=None, _data=None):
+    if hashMap.get('parent_screen') == "Товары список":
+        hashMap.put('current_screen_name', "Товары список")
+
+    return hashMap
+
+
+def get_good_variants(hashMap, _files=None, _data=None):
+    selected_good_id = hashMap.get("selected_good_id")
+    barcode = hashMap.get('barcode')
+
+    if barcode:
+        goods_barcode = ui_global.get_query_result(
+            "SELECT barcode,id_property,id_series,id_unit FROM RS_barcodes WHERE barcode = '" + barcode +
+            "'")
+
+    elif selected_good_id:
+        goods_barcode = ui_global.get_query_result(
+            "SELECT barcode,id_property,id_series,id_unit FROM RS_barcodes WHERE id_good = '" + selected_good_id +
+            "'")
+
+    barcode_cards = {"customcards": {
+        "options": {
+            "search_enabled": True,
+            "save_position": True
+        },
+
+        "layout": {
+            "type": "LinearLayout",
+            "orientation": "vertical",
+            "height": "match_parent",
+            "width": "match_parent",
+            "weight": "1",
+            "Padding": "0",
+            "Elements": [
+                {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@properties",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@unit",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        },
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@barcode",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "LinearLayout",
+                    "orientation": "horizontal",
+                    "height": "match_parent",
+                    "width": "match_parent",
+                    "weight": "1",
+                    "BackgroundColor": "#F0F8FF",
+                    "Padding": "0",
+                    "Elements": [
+
+                        {
+                            "type": "TextView",
+                            "show_by_condition": "",
+                            "Value": "@series",
+                            "NoRefresh": False,
+                            "document_type": "",
+                            "mask": "",
+                            "Variable": "",
+                            "TextSize": "15",
+                            "TextColor": "",
+                            "TextBold": True,
+                            "TextItalic": False,
+                            "BackgroundColor": "",
+                            "width": "match_parent",
+                            "height": "wrap_content",
+                            "weight": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    }
+
+    barcode_cards["customcards"]["cardsdata"] = []
+
+    i = 0
+    for element in goods_barcode:
+        c = {"key": str(i), "barcode": element[0], "properties": element[1], "unit": element[3], "series": element[2]}
+
+        if element[1]:
+            c['properties'] = get_name_by_field("RS_properties", "id", element[1])
+        if element[3]:
+            c['unit'] = get_name_by_field("RS_units", "id", element[3])
+
+        barcode_cards["customcards"]["cardsdata"].append(c)
+        i += 1
+
+    hashMap.put("barcode_cards", json.dumps(barcode_cards))
+
+    return hashMap
+
+
+def fill_empty_values(hashMap, names_list=dict(), value=""):
+
+    for k, v in names_list.items():
+
+        if v is None:
+            v = ''
+        if len(v) == 0:
+            hashMap.put(k, value)
+        else:
+            hashMap.put(k, v)
+
+    return hashMap
+
+
+def remains_on_start(hashMap, _files=None, _data=None):
+
+    return hashMap
+
+
+def modify_cards(j, hide_name=False, title_color='', replace_blank=False, disable_override_search=False):
+    cards_layout_elements = j['customcards']['layout']['Elements'][0]['Elements'][0]['Elements']
+
+    if disable_override_search:
+        j['customcards']['options']['override_search'] = False
+
+    for element in cards_layout_elements:
+        if element['Value'] == '@name':
+            if cards_layout_elements.index(element) == 0:
+                element['gravity_horizontal'] = "left"
+                if title_color:
+                    element["TextColor"] = title_color
+                # element['Value'] = str(0)
+            else:
+                if hide_name:
+
+                    # element["show_by_condition"] = "True"
+                    del cards_layout_elements[cards_layout_elements.index(element)]
+
+    if replace_blank:
+        cards_data = j['customcards']['cardsdata']
+
+        for element in cards_data:
+            for key, val in element.items():
+                if val == 'None' or val == "":
+                    element[key] = "—"
+
+    return j
+
+
+def get_name_by_field(table_name, field, field_value):
+
+    query = ui_global.get_query_result(
+        "SELECT name FROM " + table_name.strip('"\'') + " WHERE " + field + '=' + "'" + field_value + "'")
+    try:
+        if type(query) == "str":
+            return str(query).split("'")[1]
+        else:
+            return str(query[0]).split("'")[1]
+    except IndexError:
+        return field_value
+
+
+def good_types_on_start(hashMap, _files=None, _data=None):
+
+    cards_json = get_table_cards('RS_types_goods', exclude_list=['use_mark'], no_label=True)
+
+    cards = modify_cards(json.loads(cards_json), hide_name=True, disable_override_search=True)
+
+    hashMap.put('cards', json.dumps(cards))
+
+    # hashMap.put('cards', cards_json)
+
+    return hashMap
+
+
+def good_types_on_click(hashMap, _files=None, _data=None):
+    listener = hashMap.get("listener")
+
+    if listener == "CardsClick":
+
+        selected_type_id = hashMap.get('selected_card_key')
+
+        hashMap.put('type_id', str(selected_type_id))
+
+        selected_type_name = get_name_by_field("RS_types_goods", "id", selected_type_id)
+
+        hashMap.put('select_goods_type', selected_type_name)
+
+        hashMap.put("ShowScreen", "Товары список")
+
+    elif listener == 'ON_BACK_PRESSED':
+        hashMap.put('type_id', '')
+        hashMap.put('type_name', '')
+        hashMap.put("ShowScreen", "Товары список")
+
+    return hashMap
+
+
+def remains_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'wh_select':
+        hashMap.put("ShowScreen", "Выбор склада")
+    if hashMap.get('listener') == 'get_remains_btn':
+        get_remains(hashMap)
+    if hashMap.get('listener') == 'barcode':
+        identify_barcode_remains(hashMap)
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        kill_remains_tables(hashMap)
+        if hashMap.get('return_to_good_card'):
+            hashMap.put('noRefresh', '')
+            hashMap.put("FinishProcessResult", "")
+        else:
+            hashMap.put("FinishProcess", "")
+    return hashMap
+
+
+def warehouse_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'CardsClick':
+        selected_wh_id = hashMap.get("selected_card_key")
+        selected_wh_name = ui_global.get_query_result(
+            "SELECT name FROM RS_warehouses where id = '" + selected_wh_id + "'")
+        hashMap.put('selected_warehouse_id', str(selected_wh_id))
+        hashMap.put("wh_select", str(selected_wh_name[0]).split("'")[1])
+        hashMap.put('error_msg', '')
+        hashMap.put("BackScreen", "")
+        return hashMap
+    if hashMap.get('listener') == 'back_to_remains' or 'ON_BACK_PRESSED':
+        back_to_remains(hashMap)
+    return hashMap
+
+
+def remains_tables_on_input(hashMap, _files=None, _data=None):
+    if hashMap.get('listener') == 'show_filters':
+        hashMap.put("ShowScreen", "Проверить остатки")
+    if hashMap.get('listener') == 'ON_BACK_PRESSED':
+        hashMap.put('barcode', '')
+        hashMap.put('property_id', '')
+
+        if hashMap.get("return_to_good_card"):
+            hashMap.put("BackScreen", '')
+        else:
+            hashMap.put('selected_good_id', '')
+
+            if hashMap.get("current_screen_name") == "Таблица остатков":
+                kill_remains_tables(hashMap)
+                hashMap.put('ShowScreen', 'Проверить остатки')
+            elif hashMap.get("current_screen_name") == "Таблица цен":
+                kill_price_tables(hashMap)
+                hashMap.put('ShowScreen', 'Проверка цен')
+    if hashMap.get('listener') == 'barcode':
+        identify_barcode_remains(hashMap)
+    return hashMap
+
+
+@HashMap(debug=True)
+def doc_details_on_scan_barcode(hash_map: HashMap):
+    doc = ui_global.Rs_doc
+    doc.id_doc = hash_map['id_doc']
+
+    answer = http_exchange.post_goods_to_server(doc.id_doc, get_http_settings(hash_map))
+    if answer.get('Error') is not None:
+        hash_map.debug(answer.get('Error'))
+
+
+@HashMap()
+def doc_details_on_start_refresh_screen(hash_map: HashMap):
+    pass
+    # time.sleep(3)
+    # doc_goods = hash_map.get('doc_goods', True)
+    # hash_map.toast('start')
+    #
+    # if doc_goods:
+    #     cards_data = doc_goods['customcards']['cardsdata']
+    # #
+    #     try:
+    #         update_data = get_update_goods_data_screen(hash_map['id_doc'], cards_data)
+    #
+    #         if isinstance(update_data, dict) and update_data.get('Error'):
+    #             hash_map.toast('error')
+    #             hash_map.error_log(update_data.get('Error'))
+    #         else:
+    #             update_data = {row['key']: row for row in update_data}
+    #             cards_data_dict = {row['key']: row for row in cards_data}
+    #             for row in cards_data:
+    #                 if update_data.get(row['key']):
+    #                     row['qtty'] = update_data[row['key']]
+    #
+    #             add_rows = [w for k, w in update_data.items() if k not in cards_data_dict]
+    #             cards_data = cards_data + add_rows
+    #             doc_goods['customcards']['cardsdata'] = cards_data
+    #             hash_map.put(doc_goods, True)
+    #             hash_map.refresh_screen()
+    #
+        # except Exception as e:
+        #     hash_map.toast(e.args[0])
+        #     hash_map.send_to_telegram(e.args[0])
+    #
+    # hash_map.run_event_async('doc_details_on_start_refresh_screen')
+    # hash_map.toast('finish')
 @app.route('/post_screenshot', methods=['POST'])
 def post_screenshot():
     d = request.data
