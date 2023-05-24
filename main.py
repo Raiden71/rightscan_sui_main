@@ -11,11 +11,14 @@ import database_init_queryes
 import os
 from PIL import Image
 import importlib
+import time
 # from rs_settings import RSSettings
 from java import jclass
 import http_exchange
 from requests.auth import HTTPBasicAuth
 import ui_utils
+import hs_services
+import db_services
 from ui_utils import HashMap
 
 noClass = jclass("ru.travelfood.simple_ui.NoSQL")
@@ -27,6 +30,8 @@ importlib.reload(ui_form_data)
 importlib.reload(database_init_queryes)
 importlib.reload(http_exchange)
 importlib.reload(ui_utils)
+importlib.reload(hs_services)
+importlib.reload(db_services)
 
 # -----
 # 0100608940553886215,iPGSQpBt!&B
@@ -647,7 +652,6 @@ def doc_adr_details_listener(hashMap, _files=None, _data=None):
     elif listener == 'btn_rows_filter_off':
         hashMap.remove('rows_filter')
         hashMap.put('RefreshScreen','')
-
     return hashMap
 
 
@@ -830,24 +834,26 @@ def doc_details_listener(hashMap, _files=None, _data=None):
                 hashMap.put('toast', res['Descr'] )  #+ ' '+ res['Barcode']
         else:
             hashMap.put('toast', 'Товар добавлен в документ')
-        # hashMap.put('toast','1')
+            hashMap.put('barcode_scanned', 'true')
+
+
         #-------------------------------------------------- Временно
-        url = get_http_settings(hashMap)
-        qtext = '''SELECT id_doc FROM RS_docs WHERE verified = 1'''
-        res = ui_global.get_query_result(qtext, None, True)
-
-        if res:
-            doc_list = []
-            for el in res:
-                doc_list.append('"' + el['id_doc'] + '"')
-            doc_in_str = ','.join(doc_list)
-            # htpparams = {'username':hashMap.get('onlineUser'), 'password':hashMap.get('onlinePass'), 'url':url}
-            answer = http_exchange.post_changes_to_server(doc_in_str, url)
-            if answer.get('Error') is not None:
-                rs_settings.put('error_log', str(answer.get('Error')), True)
-
-            qtext = f'UPDATE RS_docs SET sent = 1  WHERE id_doc in ({doc_in_str}) '
-            ui_global.get_query_result(qtext, None, False)
+        # url = get_http_settings(hashMap)
+        # qtext = '''SELECT id_doc FROM RS_docs WHERE verified = 1'''
+        # res = ui_global.get_query_result(qtext, None, True)
+        #
+        # if res:
+        #     doc_list = []
+        #     for el in res:
+        #         doc_list.append('"' + el['id_doc'] + '"')
+        #     doc_in_str = ','.join(doc_list)
+        #     # htpparams = {'username':hashMap.get('onlineUser'), 'password':hashMap.get('onlinePass'), 'url':url}
+        #     answer = http_exchange.post_changes_to_server(doc_in_str, url)
+        #     if answer.get('Error') is not None:
+        #         rs_settings.put('error_log', str(answer.get('Error')), True)
+        #
+        #     qtext = f'UPDATE RS_docs SET sent = 1  WHERE id_doc in ({doc_in_str}) '
+        #     ui_global.get_query_result(qtext, None, False)
         # ---------------------------------------------------------
     elif listener == 'btn_doc_mark_verified':
         doc = ui_global.Rs_doc
@@ -1861,52 +1867,53 @@ def timer_update(hashMap,  _files=None, _data=None):
     #url = 'http://192.168.1.77/NSI/hs/simple_accounting/data'
 
     #hashMap.put('toast', 'Обмен') #url)
-    try:
-        result = http_exchange.server_load_data(url)
-    except:
-        raise 'Ошибка запроса к HTTP'
-    if result['status_code'] ==200:
-        if result.get('batch') is not None:
-            rs_settings.put('batch', result.get('batch'),True)
-            rs_settings.put('number_of_received','0', True)
-
-        if result.get('res_for_sql') is not None:
-
-            if rs_settings.get('batch') is not None:  #Мы выполняем пакет загрузки, данные разбиты на несколько файлов, их количество в batch
-                number_of_received = 0 if rs_settings.get('number_of_received')== 'not found' else int(rs_settings.get('number_of_received'))
-                total_received = int(rs_settings.get('batch'))
-                number_of_received =+1
-            else:
-                total_received = None
-
-            sql_error = False
-            error_pool = []
-            for key in result['res_for_sql']:
-                try:
-                    ui_global.get_query_result(key)
-                    # return 'ok'
-                except Exception as e:
-                    sql_error = True
-                    error_pool.append(e.args[0])
-
-
-            if total_received:
-                hashMap.put('toast', 'Идет загрузка большого объема данных. Получено '+ str(number_of_received*50000) + 'из, примерно '+ str(total_received*50000))
-                rs_settings.put('number_of_received',str(number_of_received), True)
-
-            if sql_error:
-                rs_settings.put('error_log', str(error_pool), True)
-                hashMap.put('toast', 'При загрузке были ошибки. Проверьте их в настройках (кнопка посмотреть ошибки)')
-        if hashMap.get('current_screen_name') == 'Документы':
-            hashMap.put('toast', 'Документы')
-            #docs_on_start(hashMap)
-        #tiles_on_start(hashMap)
-            docs_adr_on_start(hashMap)
-            hashMap.put('RefreshScreen','')
-
-    else:
-
-        hashMap.put('toast', str(result['error_pool']))
+    http_exchange.timer_server_load_data(url)
+    # try:
+    #     result = http_exchange.server_load_data(url)
+    # except:
+    #     raise 'Ошибка запроса к HTTP'
+    # if result['status_code'] ==200:
+    #     if result.get('batch') is not None:
+    #         rs_settings.put('batch', result.get('batch'),True)
+    #         rs_settings.put('number_of_received','0', True)
+    #
+    #     if result.get('res_for_sql') is not None:
+    #
+    #         if rs_settings.get('batch') is not None:  #Мы выполняем пакет загрузки, данные разбиты на несколько файлов, их количество в batch
+    #             number_of_received = 0 if rs_settings.get('number_of_received')== 'not found' else int(rs_settings.get('number_of_received'))
+    #             total_received = int(rs_settings.get('batch'))
+    #             number_of_received =+1
+    #         else:
+    #             total_received = None
+    #
+    #         sql_error = False
+    #         error_pool = []
+    #         for key in result['res_for_sql']:
+    #             try:
+    #                 ui_global.get_query_result(key)
+    #                 # return 'ok'
+    #             except Exception as e:
+    #                 sql_error = True
+    #                 error_pool.append(e.args[0])
+    #
+    #
+    #         if total_received:
+    #             hashMap.put('toast', 'Идет загрузка большого объема данных. Получено '+ str(number_of_received*50000) + 'из, примерно '+ str(total_received*50000))
+    #             rs_settings.put('number_of_received',str(number_of_received), True)
+    #
+    #         if sql_error:
+    #             rs_settings.put('error_log', str(error_pool), True)
+    #             hashMap.put('toast', 'При загрузке были ошибки. Проверьте их в настройках (кнопка посмотреть ошибки)')
+    #     if hashMap.get('current_screen_name') == 'Документы':
+    #         hashMap.put('toast', 'Документы')
+    #         #docs_on_start(hashMap)
+    #     #tiles_on_start(hashMap)
+    #         docs_adr_on_start(hashMap)
+    #         hashMap.put('RefreshScreen','')
+    #
+    # else:
+    #
+    #     hashMap.put('toast', str(result['error_pool']))
 
     qtext = '''SELECT id_doc FROM RS_docs WHERE verified = 1  and (sent <> 1 or sent is null)
                 UNION
@@ -4454,48 +4461,16 @@ def price_on_click(hashMap, _files=None, _data=None):
     return hashMap
 
 
-@HashMap(debug=True)
-def doc_details_on_scan_barcode(hash_map: HashMap):
-    doc = ui_global.Rs_doc
-    doc.id_doc = hash_map['id_doc']
-
-    answer = http_exchange.post_goods_to_server(doc.id_doc, get_http_settings(hash_map))
-    if answer.get('Error') is not None:
-        hash_map.debug(answer.get('Error'))
-
-
 @HashMap()
-def doc_details_on_start_refresh_screen(hash_map: HashMap):
-    pass
-    # time.sleep(3)
-    # doc_goods = hash_map.get('doc_goods', True)
-    # hash_map.toast('start')
-    #
-    # if doc_goods:
-    #     cards_data = doc_goods['customcards']['cardsdata']
-    # #
-    #     try:
-    #         update_data = get_update_goods_data_screen(hash_map['id_doc'], cards_data)
-    #
-    #         if isinstance(update_data, dict) and update_data.get('Error'):
-    #             hash_map.toast('error')
-    #             hash_map.error_log(update_data.get('Error'))
-    #         else:
-    #             update_data = {row['key']: row for row in update_data}
-    #             cards_data_dict = {row['key']: row for row in cards_data}
-    #             for row in cards_data:
-    #                 if update_data.get(row['key']):
-    #                     row['qtty'] = update_data[row['key']]
-    #
-    #             add_rows = [w for k, w in update_data.items() if k not in cards_data_dict]
-    #             cards_data = cards_data + add_rows
-    #             doc_goods['customcards']['cardsdata'] = cards_data
-    #             hash_map.put(doc_goods, True)
-    #             hash_map.refresh_screen()
-    #
-        # except Exception as e:
-        #     hash_map.toast(e.args[0])
-        #     hash_map.send_to_telegram(e.args[0])
-    #
-    # hash_map.run_event_async('doc_details_on_start_refresh_screen')
-    # hash_map.toast('finish')
+def doc_details_barcode_scanned(hash_map):
+    if hash_map['barcode_scanned'] == 'true':
+        doc = ui_global.Rs_doc
+        doc.id_doc = hash_map.get('id_doc')
+
+        answer = http_exchange.post_goods_to_server(doc.id_doc, get_http_settings(hash_map))
+
+        if answer.get('Error') is not None:
+            hash_map.debug(answer.get('Error'))
+
+        doc_details_on_start(hash_map)
+        hash_map.refresh_screen()
