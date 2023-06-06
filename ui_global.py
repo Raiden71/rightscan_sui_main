@@ -1,5 +1,5 @@
 import collections
-import datetime
+from datetime import datetime
 import sqlite3
 from sqlite3 import Error
 import ui_barcodes
@@ -346,7 +346,7 @@ class Rs_doc():
             #     get_query_result(qtext, (el['id'],))
             # else:
             qtext = 'UPDATE RS_docs_table SET qtty=qtty+?, last_updated = ?  WHERE id = ?'
-            get_query_result(qtext, (qtty, str(datetime.datetime.now()), el['id']))
+            get_query_result(qtext, (qtty, datetime.now().strftime("%y-%m-%d %H:%M:%S"), el['id']))
         else:  # Такой строки нет, надо добавить
             qtext = 'REPLACE INTO RS_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, price, id_price, is_plan) VALUES (?,?,?,?,?,?,?,?,?)'
             get_query_result(qtext, (
@@ -628,7 +628,7 @@ class Rs_adr_doc():
             #     get_query_result(qtext, (el['id'],))
             # else:
             qtext = 'UPDATE RS_adr_docs_table SET qtty=qtty+?, last_updated = ?  WHERE id = ?'
-            get_query_result(qtext, (qtty, str(datetime.datetime.now()), el['id']))
+            get_query_result(qtext, (qtty, datetime.now().strftime("%y-%m-%d %H:%M:%S"), el['id']))
         else:  # Такой строки нет, надо добавить
             qtext = 'REPLACE INTO RS_adr_docs_table(id_doc, id_good, id_properties,id_series, id_unit, qtty, is_plan, id_cell, table_type) VALUES (?,?,?,?,?,?,?,?,?)'
             get_query_result(qtext, (
